@@ -1,3 +1,5 @@
 .claude/
 .agent/
 ai_tmp/
+.codegraph/
+.agents/
