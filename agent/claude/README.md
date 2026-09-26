@@ -476,6 +476,8 @@ Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Redis，JDK 17
 
 **这个文件值得认真写**，一次投入长期受益，也是同事之间可以共享的团队资产（可以提交到 git）。
 
+规矩一多，单靠一个 `CLAUDE.md` 会又长又难维护，还每轮都占上下文。这时把约定拆成多个文件放进 **`.claude/rules/`**：不带 `paths` 的启动就加载，带 `paths` 的只在模型碰到匹配文件时才加载。四层记忆（Managed / User / Project / Local）的优先级、`paths` 怎么写、怎么确认规则真的加载了，见 [`rule使用指南.md`](./rule使用指南.md)。
+
 ---
 
 ## 7. 把它用好的几个习惯
@@ -556,9 +558,11 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
 
 ## 10. 进阶方向（用熟了再看）
 
-- **MCP**：接入外部工具/数据源，比如让 Claude 直接查数据库、查 Jira、查内部文档
-- **Hooks**：在特定时机自动执行脚本（如每次改完 Java 文件自动跑格式化）
-- **自定义 Slash 命令 / Skill**：把团队常用流程固化成一个 `/命令`
+- **Rule**：把项目约定拆成多个 Markdown 文件放进 `.claude/rules/`，自动加载；还能用 `paths` 只在相关文件上生效，详见 [`rule使用指南.md`](./rule使用指南.md)
+- **MCP**：接入外部工具/数据源，比如让 Claude 直接查数据库、查 Jira、查内部文档，详见 [`mcp使用指南.md`](./mcp使用指南.md)
+- **Hooks**：在特定时机自动执行脚本（如每次改完文件自动格式化、拦住改 `.env`、收尾前要求先跑测试），详见 [`Hook使用指南.md`](./Hook使用指南.md)
+- **自定义 Slash 命令**：把一句话的固定提示词（可带参数）固化成一个 `/命令`，详见 [`command使用指南.md`](./command使用指南.md)
+- **Skill**：把一类任务的流程、检查单和附带文件打包成可复用能力，详见 [`skill使用指南.md`](./skill使用指南.md)
 - **子 agent（Subagents）**：定义专职 agent，比如"专门做代码 review 的"、"专门写单测的"
 - **Headless 模式**：`claude -p "..." --output-format json` 塞进 CI/CD 流水线做自动 review
 
