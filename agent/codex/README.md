@@ -164,7 +164,7 @@ codex --search "查一下当前版本的官方迁移说明"
 
 ---
 
-## 5. 权限和安全
+## 5. 配置：权限、模型与上下文窗口
 
 Codex 的安全控制分两层：
 
@@ -193,7 +193,7 @@ codex --sandbox danger-full-access --ask-for-approval never
 
 它会显著扩大 Codex 的操作范围。只在隔离容器或你明确控制的环境中使用。旧配置中的 `approval_policy = "untrusted"` 已退休，不要继续使用。
 
-### 5.1 永久配置
+### 5.1 权限与沙箱（写进 config.toml）
 
 用户级配置文件：
 

@@ -22,7 +22,7 @@ Claude Code 是一个**跑在终端里的编程助手**。它不是网页版聊�
 # 1) 安装（PowerShell 里执行）
 irm https://claude.ai/install.ps1 | iex
 
-# 2) 配好模型接入（见第 3 节，二选一：官方账号 或 公司网关）
+# 2) 配好模型接入（见第 5 节，二选一：官方账号 或 公司网关）
 
 # 3) 进项目目录，启动
 cd C:\Users\你的名字\IdeaProjects\你的项目
@@ -63,7 +63,7 @@ npm install -g @anthropic-ai/claude-code
 ```
 
 > **不推荐用 cnpm / 淘宝镜像装**，容易漏文件。
-> 如果安装时报 403、地区限制之类的错，先按第 3 节配好网关再试。
+> 如果安装时报 403、地区限制之类的错，先按第 5 节配好网关再试。
 
 **macOS / Linux / WSL：**
 
@@ -82,11 +82,75 @@ claude doctor        # 体检，装完建议跑一次
 
 ---
 
-## 3. 配置模型接入（二选一）
+## 3. 基本用法
+
+### 3.1 启动
+
+```powershell
+cd C:\path\to\your\project     # 一定要先进项目目录，它按目录加载上下文
+claude                         # 进入交互界面
+```
+
+常用启动参数：
+
+```powershell
+claude "帮我看看这个项目的登录逻辑在哪"   # 带一句初始问题直接启动
+claude -c                                  # 继续上一次对话（continue）
+claude -r                                  # 从历史对话列表里挑一个恢复（resume）
+claude -p "解释一下 pom.xml"               # 非交互模式，打印结果就退出，适合写脚本
+claude update                              # 升级到最新版
+```
+
+### 3.2 对话界面的几个关键操作
+
+| 操作 | 效果 |
+|---|---|
+| 直接打字 + 回车 | 提问 / 下指令 |
+| `alt+v` | 粘贴图片给agent |
+| `@文件名` | 引用某个文件，输入 `@` 后有自动补全 |
+| `!命令` | 直接执行 shell 命令（如 `!git status`、`!mvn test`） |
+| `#内容` | 把这条内容记进记忆文件（CLAUDE.md），下次还生效 |
+| `/命令` | 斜杠命令，输入 `/` 看全部 |
+| `Esc` | 打断它正在干的事 |
+| `Esc` `Esc` | 回退到之前某一步（rewind），改错了救命用 |
+| `Shift+Tab` | 切换权限模式（见 5.2） |
+| `Ctrl+J` 或 `\` + 回车 | 输入换行（不是发送） |
+| `Ctrl+C` | 清空当前输入；连按两次退出 |
+| `Ctrl+D` | 退出 |
+
+---
+
+## 4. 常用斜杠命令
+
+| 命令 | 作用 |
+|---|---|
+| `/help` | 帮助，忘了啥命令就敲这个 |
+| `/init` | 给当前项目自动生成 `CLAUDE.md`（项目说明书，见第 6 节） |
+| `/clear` | 清空对话上下文，开新话题时用（省 token） |
+| `/compact` | 压缩上下文，聊太久了用它续命（保留要点，丢掉细节） |
+| `/context` | 看当前上下文用了多少 |
+| `/status` | 看当前模型、账号、API 地址、工作目录 |
+| `/model` | 切换模型 |
+| `/config` | 图形化改配置（主题、权限等） |
+| `/permissions` | 管理权限规则，减少重复的「是否允许」弹窗 |
+| `/rewind` | 回退对话/代码改动 |
+| `/resume` | 恢复历史对话 |
+| `/cost` | 看这次会话花了多少（官方账号有参考意义） |
+| `/doctor` | 体检，出问题先跑它 |
+| `/review` | 让它 review 当前分支的改动 |
+| `/mcp` | 管理 MCP 外部工具接入 |
+| `/agents` | 管理子 agent |
+| `/exit` | 退出（等同 Ctrl+D） |
+
+---
+
+## 5. 配置
+
+### 5.1 模型接入（二选一）
 
 这一步是**唯一容易卡住的地方**，按你拿到的账号类型选一种。
 
-### 方式 A：官方 Anthropic 账号
+#### 方式 A：官方 Anthropic 账号
 
 适用于自己有 Claude Pro / Max 订阅，或从 <https://console.anthropic.com> 申请了 API Key 的情况。
 
@@ -101,7 +165,7 @@ claude          # 启动后输入 /login，按提示在浏览器里完成授权
 [Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-xxxxx", "User")
 ```
 
-### 方式 B：公司 / 自建网关
+#### 方式 B：公司 / 自建网关
 
 适用于走内部中转网关的情况。需要两个值，**找对接人要**：
 
@@ -128,10 +192,10 @@ claude          # 启动后输入 /login，按提示在浏览器里完成授权
 > - 三个 `ANTHROPIC_DEFAULT_*_MODEL` 都填上网关支持的同一个模型名，否则切换模型时可能报错。
 > - 这个文件含密钥，**不要提交到 git**。
 > - 改完重开终端或重启 `claude` 生效。
-> - 可以一次配完 —— 顺手把默认权限模式也设了（见 4.4），在同一个 JSON 里再加一段：
+> - 可以一次配完 —— 顺手把默认权限模式也设了（见 5.3），在同一个 JSON 里再加一段：
 >   `"permissions": { "allow": [], "defaultMode": "auto" }`，注意和 `env` 之间要加逗号。
 
-### 3.1 确认配好了
+#### 确认配好了
 
 启动 `claude`，输入斜杠命令 `/status`，看当前模型和 API 地址对不对。或者在对话里直接问：
 
@@ -139,57 +203,19 @@ claude          # 启动后输入 /login，按提示在浏览器里完成授权
 你是什么模型？当前 API 地址是什么？
 ```
 
----
-
-## 4. 基本用法
-
-### 4.1 启动
-
-```powershell
-cd C:\path\to\your\project     # 一定要先进项目目录，它按目录加载上下文
-claude                         # 进入交互界面
-```
-
-常用启动参数：
-
-```powershell
-claude "帮我看看这个项目的登录逻辑在哪"   # 带一句初始问题直接启动
-claude -c                                  # 继续上一次对话（continue）
-claude -r                                  # 从历史对话列表里挑一个恢复（resume）
-claude -p "解释一下 pom.xml"               # 非交互模式，打印结果就退出，适合写脚本
-claude update                              # 升级到最新版
-```
-
-### 4.2 对话界面的几个关键操作
-
-| 操作 | 效果 |
-|---|---|
-| 直接打字 + 回车 | 提问 / 下指令 |
-| `alt+v` | 粘贴图片给agent |
-| `@文件名` | 引用某个文件，输入 `@` 后有自动补全 |
-| `!命令` | 直接执行 shell 命令（如 `!git status`、`!mvn test`） |
-| `#内容` | 把这条内容记进记忆文件（CLAUDE.md），下次还生效 |
-| `/命令` | 斜杠命令，输入 `/` 看全部 |
-| `Esc` | 打断它正在干的事 |
-| `Esc` `Esc` | 回退到之前某一步（rewind），改错了救命用 |
-| `Shift+Tab` | 切换权限模式（见 4.3） |
-| `Ctrl+J` 或 `\` + 回车 | 输入换行（不是发送） |
-| `Ctrl+C` | 清空当前输入；连按两次退出 |
-| `Ctrl+D` | 退出 |
-
-### 4.3 权限模式（Shift+Tab 循环切换）
+### 5.2 权限模式（Shift+Tab 循环切换）
 
 Claude 每次要改文件、跑命令，都会先问你。模式决定问得多勤：
 
 1. **manual / 普通模式**：每步都问，最安全，新手上手用这个
 2. **acceptEdits（自动接受编辑）**：改文件不问，跑命令还会问，适合你已经信任它的时候
-3. **auto（自动判定）**：由一个分类器逐个操作判断，安全的直接放行、可疑的才问你。日常开发最舒服的模式，见 4.4
+3. **auto（自动判定）**：由一个分类器逐个操作判断，安全的直接放行、可疑的才问你。日常开发最舒服的模式，见 5.3
 4. **plan（计划模式）**：只读不改，它先给你一份方案让你确认，**改老代码/复杂需求时强烈推荐先用这个**
 5. **bypassPermissions**：啥都不问，危险，只在容器/沙箱里用
 
 > 建议流程：复杂需求先 `Shift+Tab` 进 plan mode 让它出方案 → 方案没问题 → 切到 auto 让它开干。
 
-### 4.4 把 auto 模式设为默认（少点弹窗）
+### 5.3 把 auto 模式设为默认（少点弹窗）
 
 **auto 模式**是日常最实用的选择：不用像 `manual` 那样每个操作都要你点"允许"，又不像 `bypassPermissions` 那样完全裸奔 —— 它用分类器判断每个动作，放行安全的、拦下有风险的。
 
@@ -236,7 +262,7 @@ claude --permission-mode auto          # 仅当前会话
 > 1. **auto 写在项目级 `.claude/settings.json` 里不生效**，会被静默忽略 —— 必须写在用户级 `~/.claude/settings.json`，或者用 `--permission-mode auto`。`bypassPermissions` 同理。
 > 2. **auto 需要模型/套餐支持**。不满足条件时它**不会报错**，而是静默退回 Manual 模式 —— 所以"配置写了却不生效"多半不是配置写错，是模型不支持。用底栏徽标或 `/status` 确认当前实际生效的模式。
 
-### 4.5 让 Claude 默认用 PowerShell（Windows）
+### 5.4 让 Claude 默认用 PowerShell（Windows）
 
 **先分清楚这是两件独立的事**，很多人只配了一个然后纳闷为什么没变化：
 
@@ -276,7 +302,7 @@ claude --permission-mode auto          # 仅当前会话
 
 > ⚠️ **注意**：`defaultShell` 在**所有平台上默认都是 `bash`，Windows 上也不会自动变成 PowerShell**。所以想用 PowerShell 必须显式设置。
 
-**合起来的完整配置**（网关 + 权限模式 + shell；上下文窗口见 4.6）：
+**合起来的完整配置**（网关 + 权限模式 + shell；上下文窗口见 5.5）：
 
 ```json
 {
@@ -310,7 +336,7 @@ claude --permission-mode auto          # 仅当前会话
 
 > **小知识**：不要在教程/文档里假设 PowerShell 是 7 —— 先确认 `pwsh` 装没装。装的话推荐用 winget 装 PowerShell 7，体验比 5.1 好很多。
 
-### 4.6 调整上下文窗口与自动压缩（走网关模型必看）
+### 5.5 调整上下文窗口与自动压缩（走网关模型必看）
 
 **先理解一个前提**：Claude Code 内置一张「模型 → 上下文窗口」对照表。用公司网关自带的模型（比如 `deepseek-flash`）时，这个模型**不在表里**，Claude Code 就按**未知模型**处理 —— 默认只给 **20 万 token** 窗口，哪怕网关那边声明支持 1M 也不会自动认。
 
@@ -372,7 +398,7 @@ claude --permission-mode auto          # 仅当前会话
 
 #### 完整的 settings.json（含 1M 窗口）
 
-和 4.5 那份合并起来就是全量配置：
+和 5.4 那份合并起来就是全量配置：
 
 ```json
 {
@@ -416,30 +442,6 @@ claude --permission-mode auto          # 仅当前会话
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | 关掉 1M 上下文能力（排查用） |
 
 > **别乱加 `[1m]`**：给模型 id 加后缀 `[1m]`（如 `claude-sonnet-4-5[1m]`）是**官方 Claude 模型**申请 1M 窗口的写法，网关自建模型加这个不一定被识别，还可能直接用不了。走网关就用上面 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 这条路。
-
----
-
-## 5. 常用斜杠命令
-
-| 命令 | 作用 |
-|---|---|
-| `/help` | 帮助，忘了啥命令就敲这个 |
-| `/init` | 给当前项目自动生成 `CLAUDE.md`（项目说明书，见第 6 节） |
-| `/clear` | 清空对话上下文，开新话题时用（省 token） |
-| `/compact` | 压缩上下文，聊太久了用它续命（保留要点，丢掉细节） |
-| `/context` | 看当前上下文用了多少 |
-| `/status` | 看当前模型、账号、API 地址、工作目录 |
-| `/model` | 切换模型 |
-| `/config` | 图形化改配置（主题、权限等） |
-| `/permissions` | 管理权限规则，减少重复的「是否允许」弹窗 |
-| `/rewind` | 回退对话/代码改动 |
-| `/resume` | 恢复历史对话 |
-| `/cost` | 看这次会话花了多少（官方账号有参考意义） |
-| `/doctor` | 体检，出问题先跑它 |
-| `/review` | 让它 review 当前分支的改动 |
-| `/mcp` | 管理 MCP 外部工具接入 |
-| `/agents` | 管理子 agent |
-| `/exit` | 退出（等同 Ctrl+D） |
 
 ---
 
@@ -520,7 +522,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 **Q：安装时报错 / 403 / 提示不支持当前地区**
-Claude Code 有地区检测，走官方账号的话国内直连大概率不行，需要代理。**走公司网关则通常不受影响**，先把第 3 节方式 B 配好再装或再启动。
+Claude Code 有地区检测，走官方账号的话国内直连大概率不行，需要代理。**走公司网关则通常不受影响**，先把 5.1 节方式 B 配好再装或再启动。
 
 **Q：连不上 / 一直转圈**
 - 官方账号：检查网络/代理是否正常
@@ -534,11 +536,11 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
 `/compact` 压缩，或者 `/clear` 重开然后把关键信息重新说一遍。
 
 **Q：上下文窗口太小 / 没聊几句就自动压缩**
-网关自带的模型 Claude Code 不认识，默认只给 20 万窗口。按 4.6 设 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` + `autoCompactWindow`；**并检查 `modelPicker.behavesAs` 是不是把模型映射成了内置 Claude 模型** —— 那样两个配置都会失效。用 `/autocompact` 看实际生效值和来源。
+网关自带的模型 Claude Code 不认识，默认只给 20 万窗口。按 5.5 设 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` + `autoCompactWindow`；**并检查 `modelPicker.behavesAs` 是不是把模型映射成了内置 Claude 模型** —— 那样两个配置都会失效。用 `/autocompact` 看实际生效值和来源。
 
 **Q：每次都要点「允许」，烦**
 两个办法，可以一起用：
-1. 把默认权限模式设成 **auto**（见 4.4），让它自己判断，只在可疑操作时问你
+1. 把默认权限模式设成 **auto**（见 5.3），让它自己判断，只在可疑操作时问你
 2. `/permissions` 里加白名单规则，比如允许 `Bash(git status:*)`、`Bash(mvn test:*)`，常用的放进去就不用反复确认了
 
 **Q：auto 模式是不是就是不检查了？**

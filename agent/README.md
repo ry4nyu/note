@@ -2,7 +2,17 @@
 
 这是一份**给同事的推荐清单**，收集了一批能实实在在提升日常开发体验的开源技能（Skill）、MCP 服务和命令行工具。
 
-前置阅读：如果你还没装 Claude Code，先看同目录下的 [`claude使用教程.md`](./claude使用教程.md)。
+## 目录
+
+```text
+agent/
+├─ README.md          本文件：跨工具的 Skill / MCP / CLI 推荐清单
+├─ claude/README.md   Claude Code 上手指南（安装 / 用法 / 配置 / CLAUDE.md）
+├─ codex/README.md    Codex CLI 上手指南（安装 / 用法 / 配置 / AGENTS.md）
+└─ pi/README.md      Pi 上手指南（安装 / 用法 / 配置 / AGENTS.md）
+```
+
+前置阅读：还没装 Claude Code，看 [`claude/README.md`](./claude/README.md)；用 Codex CLI 看 [`codex/README.md`](./codex/README.md)；用 Pi 看 [`pi/README.md`](./pi/README.md)。
 
 **说明几点：**
 
@@ -16,11 +26,9 @@
 
 | 你想解决的问题 | 装这个 | 类型 |
 |---|---|---|
-| Agent 说话太啰嗦，废话烧 token | [caveman](#caveman) / [i-have-adhd](#i-have-adhd) | Skill |
+| Agent 说话太啰嗦，废话烧 token | [caveman](#caveman) | Skill |
 | Agent 过度设计，写一堆没用的代码 | [ponytail](#ponytail) | Skill |
-| 命令输出太长，把上下文撑爆 | [rtk](#rtk) | CLI 代理 |
-| 整体上下文太大，想全面压缩 | [headroom](#headroom) / [lean-ctx](#lean-ctx) | 代理 / MCP |
-| 大仓库里 agent 找代码靠瞎 grep | [codegraph](#codegraph) / [codebase-memory-mcp](#codebase-memory-mcp) | MCP |
+| 大仓库里 agent 找代码靠瞎 grep | [codegraph](#codegraph) | MCP |
 | 代码评审靠人肉，想加一层 AI 兜底 | [open-code-review](#open-code-review) | CLI |
 | 让 agent 帮你写 Word / Excel / PPT | [OfficeCLI](#officecli) | CLI + Skill |
 | 轻量数据库客户端 + 让 agent 直连查库 | [dbx](#dbx) | 桌面 + MCP |
@@ -50,21 +58,6 @@ npx skills add JuliusBrussee/caveman -g     # -g = 全局安装，所有项目�
 
 README 说支持 30+ 种 agent。另外它还有 proxy / middleware 组件压缩**输入**（日志、测试输出、JSON、diff），感兴趣再看。
 
-### i-have-adhd
-
-**仓库**：<https://github.com/ayghri/i-have-adhd>
-
-换一个角度解决同一个问题：不是让话说得短，而是**强制输出结构**——先给动作、步骤编号、不寒暄。
-
-> Before：一大段"好问题！让我想想……你的鉴权流程有几个环节……"
-> After：`先跑 npm install jsonwebtoken@latest，然后改 src/auth.ts:42`，接着 1/2/3 编号步骤。
-
-和 caveman 二选一即可，也可以都装（输出会更直给，看个人口味）。装法是把下面这句丢给你的 agent：
-
-```text
-Install the i-have-adhd skill/plugin from https://github.com/ayghri/i-have-adhd, refer to the repo's AGENTS.md for instructions.
-```
-
 ### ponytail
 
 **仓库**：<https://github.com/DietrichGebert/ponytail>
@@ -89,88 +82,11 @@ npx skills add DietrichGebert/ponytail -g
 
 ---
 
-## 2. 省上下文：把噪音挡在模型外面
-
-Agent 的上下文窗口是稀缺资源，真正吃掉它的大头是**命令输出**（`ls`、`git diff`、测试日志）和**历史消息**。下面三个都在解决这件事，选一个就够，别叠着装。
-
-### rtk
-
-**仓库**：<https://github.com/rtk-ai/rtk>
-
-Rust 单二进制，拦截 shell 命令并把输出压缩后再喂给 agent。支持 100+ 命令，官方说开销 <10ms，最高能砍掉 90% 的 bash 输出。
-
-压缩策略是按命令定制的，比如：
-
-| 命令 | 处理方式 |
-|---|---|
-| `ls` / `tree` | 目录树 + 文件计数，不再一行一个文件 |
-| `cat` / 读文件 | 优先给签名和结构，而不是全文 |
-| `grep` / `rg` | 截断超长行，按文件分组 |
-| `git diff` | 减少上下文行，去掉头部噪音 |
-| `cargo test` / `npm test` | 只留失败项，通过的折叠成计数 |
-
-Windows 安装：
-
-```powershell
-winget install rtk-ai.rtk
-rtk init -g                     # Claude Code / Copilot 默认
-rtk init -g --codex             # OpenAI Codex
-rtk init -g --agent cursor      # Cursor
-```
-
-> ⚠️ crates.io 上有一个**同名但完全无关**的包（Rust Type Kit）。如果你 `cargo install` 装完发现 `rtk gain` 跑不通，就是装错了。
-
-### headroom
-
-**仓库**：<https://github.com/headroomlabs-ai/headroom>
-
-压缩"agent 读到的一切"——工具输出、日志、RAG 片段、文件内容、对话历史。**压缩在全本机完成，不上传任何 prompt 或文件内容**，这点对内部代码比较友好。
-
-几种用法：
-
-- **库**：Python / TypeScript 里直接调 `compress(messages)`
-- **代理**：`headroom proxy --port 8787`，零代码改动，任何语言都行
-- **包一层**：`headroom wrap claude`（也支持 codex / cursor / aider / opencode 等十几个）
-- **MCP 服务**：提供 `headroom_compress` / `headroom_retrieve` / `headroom_stats`
-- **跨 agent 记忆**：Claude / Codex / Gemini / Grok 共用一个记忆库，自动去重
-- **`headroom learn`**：挖失败会话，把教训写成 `CLAUDE.local.md`（默认，已 gitignore）或 `CLAUDE.md` / `AGENTS.md`
-
-可逆（CCR）：原文缓存在本地，需要时能取回。
-
-```powershell
-pip install "headroom-ai[all]"    # 会装 headroom CLI
-```
-
-### lean-ctx
-
-**仓库**：<https://github.com/yvgude/lean-ctx>
-
-定位是"AI 价值门"（Value Gate）：**理解**任务 → **路由**对的上下文 → **压缩**再发送 → **追踪**成本和效果。本地优先，零配置可用。
-
-五个能力对应解决的痛点：
-
-| 痛点 | 它的做法 |
-|---|---|
-| 重复读同一个文件，每次都重发全文 | 缓存复用，命中就返回紧凑引用 |
-| 命令输出里有大量重复噪音 | 按命令定制压缩，保留关键信息 |
-| 每轮都重发整段历史 | 代理层逐请求压缩，**对 prompt cache 友好** |
-| 换个对话上下文就清零 | 会话记忆跨对话保留 |
-| 不知道 context 花在哪 | 实时面板 + 预算控制；还能跑 Shadow Mode 对比基线 |
-
-```powershell
-curl -fsSL https://leanctx.com/install.sh | sh
-# 或 npm install -g lean-ctx-bin
-```
-
-> Windows 上目前主要靠**源码构建**（`./install.ps1`，需要 Rust 环境）。嫌麻烦的话 Windows 用户优先选 rtk 或 headroom。
-
----
-
-## 3. 看懂代码库：代码图谱类
+## 2. 看懂代码库：代码图谱类
 
 大仓库里最常见的一幕：你问一个跨文件的问题，agent 开始 `grep` → `read` → 再 `grep`，八轮之后上下文塞满了，答案还没出来。
 
-这两个都是**预建代码知识图谱**再通过 MCP 暴露给 agent，让它一次调用就拿到该看的代码。**二选一**，功能重叠。
+它把代码库**预建成知识图谱**再通过 MCP 暴露给 agent，让它一次调用就拿到该看的代码。
 
 ### codegraph
 
@@ -198,30 +114,11 @@ codegraph upgrade                 # 升级（会自动识别安装方式）
 
 > 注意：`install` **只配置 agent，不索引代码**，每个项目要自己跑一次 `codegraph init`。
 
-### codebase-memory-mcp
-
-**仓库**：<https://github.com/DeusData/codebase-memory-mcp>
-
-用 tree-sitter 做 AST 分析（内置 162 种语言的语法），再加一层混合 LSP 做类型解析。速度是它的卖点：Linux 内核（2800 万行、7.5 万文件）3 分钟建完索引。
-
-官方给的 token 对比：5 个结构查询约 **3,400 token**，而逐个文件搜索约 **412,000 token**（约 120 倍差距）。提供 17 个 MCP 工具（搜索、调用链追踪、架构、影响面分析、Cypher 查询、死代码检测、跨服务 HTTP 关联等），自带 `localhost:9749` 的 3D 图谱可视化。
-
-Windows 安装：
-
-```powershell
-# 先从 Releases 下载 codebase-memory-mcp-windows-amd64.zip
-Expand-Archive codebase-memory-mcp-windows-amd64.zip -DestinationPath .
-Unblock-File .\install.ps1
-.\install.ps1
-```
-
-> ⚠️ 这个工具**会读你的代码库，并写入 agent 的配置文件**（这是它的设计目的）。README 自己也提醒：介意的话先审计再加脚本。装完需要重启 agent。
-
 ### open-code-review
 
 **仓库**：<https://github.com/alibaba/open-code-review>
 
-前面两个是"让 agent 看懂代码"，这个是**让 agent 评审代码**。它原本是阿里内部的官方 AI 代码评审助手，服务了两年多后开源。
+前面是"让 agent 看懂代码"，这个是**让 agent 评审代码**。它原本是阿里内部的官方 AI 代码评审助手，服务了两年多后开源。
 
 思路和"给 Claude Code 写个 review skill"不同：它是**确定性工程 + agent 混合**，读 git diff，把改动文件交给可配置的 LLM（带 tool-use），输出**行级精确**的结构化评审意见。README 点名了纯自然语言方案的三个毛病：大改动会偷懒只审部分文件、报的问题定位漂移、质量随 prompt 波动。
 
@@ -243,7 +140,7 @@ ocr review --format json --output result.json   # 方便接 CI
 
 ---
 
-## 4. 干活工具：文档 / 数据库 / 可视化
+## 3. 干活工具：文档 / 数据库 / 可视化
 
 ### OfficeCLI
 
@@ -306,7 +203,7 @@ npx skills add tt-a1i/archify -g
 
 ---
 
-## 5. herdr：管一堆 Agent 的终端运行时
+## 4. herdr：管一堆 Agent 的终端运行时
 
 **仓库**：<https://github.com/herdrdev/herdr>
 
@@ -331,26 +228,24 @@ powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
 
 ---
 
-## 6. 怎么开始：建议的安装顺序
+## 5. 怎么开始：建议的安装顺序
 
-别一次全装 —— 装太多会互相干扰（尤其是第 2 类，上下文压缩工具选一个就好）。建议按这个顺序：
+别一次全装 —— 装太多会互相干扰。建议按这个顺序：
 
 1. **第一周**：装一个输出类 skill，[caveman](#caveman) 或 [ponytail](#ponytail)。零风险，立刻能感受到区别。
-2. **第二周**：如果你是重度终端用户，加 [rtk](#rtk)。命令输出变短的效果最直观。
-3. **大仓库**：接 [codegraph](#codegraph) 或 [codebase-memory-mcp](#codebase-memory-mcp)（选一个），感受"一次调用拿到代码"和"grep 八轮"的差别。
-4. **按需**：团队有评审流程 → [open-code-review](#open-code-review)；天天写文档表格 → [OfficeCLI](#officecli)；要和数据库打交道 → [dbx](#dbx)。
+2. **大仓库**：接 [codegraph](#codegraph)，感受"一次调用拿到代码"和"grep 八轮"的差别。
+3. **按需**：团队有评审流程 → [open-code-review](#open-code-review)；天天写文档表格 → [OfficeCLI](#officecli)；要和数据库打交道 → [dbx](#dbx)。
 
 **推荐验证方式**：装前后各找同一个真实任务跑一遍，对比一下 token 消耗和你的体感。README 上的数字是别人的机器、别人的仓库，你的场景未必一样。
 
 ---
 
-## 7. 注意事项（重要）
+## 6. 注意事项（重要）
 
 1. **合规先行**：这些是第三方开源项目，多数由个人或小团队维护。装之前确认公司对代码外发、第三方工具接入的规定。
-2. **配置类工具会改你的 agent 配置**：codegraph、codebase-memory-mcp、rtk、OfficeCLI 的安装脚本都会自动检测并写入 agent 配置（`settings.json`、`.mcp.json`、`CLAUDE.md`、hooks 等）。装之前看一眼脚本内容，装完 `git diff` 一下项目里的配置文件。
-3. **不要把网关 token 贴进命令行**：涉及 `ANTHROPIC_AUTH_TOKEN` 之类的操作，统一走配置文件（见 [`claude使用教程.md`](./claude使用教程.md) 第 3 节），别在 shell 历史里留痕。
+2. **配置类工具会改你的 agent 配置**：codegraph、OfficeCLI 的安装脚本都会自动检测并写入 agent 配置（`settings.json`、`.mcp.json`、`CLAUDE.md`、hooks 等）。装之前看一眼脚本内容，装完 `git diff` 一下项目里的配置文件。
+3. **不要把网关 token 贴进命令行**：涉及 `ANTHROPIC_AUTH_TOKEN` 之类的操作，统一走配置文件（见 [`claude/README.md`](./claude/README.md) 第 5.1 节），别在 shell 历史里留痕。
 4. **版本行为会变**：这类项目迭代极快，命令和默认行为随时可能调整。本文命令基于我查看 README 时的版本（2026-09），遇到不一致先看官方 README。
-5. **上下文压缩工具别叠加**：rtk / headroom / lean-ctx 三个同时上，可能互相打架或者造成难以排查的输出缺失。选一个，跑稳了再说。
 
 ---
 
@@ -360,14 +255,9 @@ powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
 |---|---|---|
 | archify | <https://github.com/tt-a1i/archify> | Skill |
 | open-code-review | <https://github.com/alibaba/open-code-review> | CLI |
-| i-have-adhd | <https://github.com/ayghri/i-have-adhd> | Skill |
-| headroom | <https://github.com/headroomlabs-ai/headroom> | 代理 / MCP |
 | herdr | <https://github.com/herdrdev/herdr> | 终端运行时 |
 | ponytail | <https://github.com/DietrichGebert/ponytail> | Skill |
 | OfficeCLI | <https://github.com/iOfficeAI/OfficeCLI> | CLI + Skill |
-| lean-ctx | <https://github.com/yvgude/lean-ctx> | 代理 |
 | caveman | <https://github.com/JuliusBrussee/caveman> | Skill / 代理 |
-| codebase-memory-mcp | <https://github.com/DeusData/codebase-memory-mcp> | MCP |
 | dbx | <https://github.com/t8y2/dbx> | 桌面 + MCP |
 | codegraph | <https://github.com/colbymchenry/codegraph> | MCP |
-| rtk | <https://github.com/rtk-ai/rtk> | CLI 代理 |
