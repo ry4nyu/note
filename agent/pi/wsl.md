@@ -11,6 +11,7 @@ WSL（Windows Subsystem for Linux）让你在 Windows 上直接运行 Linux 环�
 
 ## 2. 一键安装（推荐）
 
+建议先关闭网络代理（梯子），网络不稳定，很容易安装失败.
 以**管理员身份**打开 PowerShell 或 Windows 终端，执行：
 
 ```powershell
@@ -119,7 +120,7 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 执行 `wsl --update`，然后重启 WSL：`wsl --shutdown`。
 
 **3. `wsl --install` 没有反应或报错 `无效的命令行选项`**
-Windows 版本过低，参考第 6 节手动安装，或先更新 Windows。
+Windows 版本过低，参考第 7 节手动安装，或先更新 Windows。
 
 **4. 安装时卡在 0%**
 检查网络，或稍等几分钟；可以关闭后重新执行 `wsl --install`。
@@ -136,3 +137,125 @@ wsl -l -v
 ```
 
 看到发行版且 VERSION 为 2、STATE 为 Running 或 Stopped，即表示安装成功。进入 Linux 后可执行 `uname -a` 确认内核信息。
+
+初始化：
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+## 10. 网络、DNS 与代理
+
+先分清两个配置文件：`.wslconfig` 在 Windows 用户目录（`%USERPROFILE%\.wslconfig`），管所有发行版；`/etc/wsl.conf` 在发行版内部，只管这一个发行版。**两者改完都要 `wsl --shutdown` 再重进才生效。**
+
+### 10.1 默认 NAT 模式
+
+WSL 2 有独立的虚拟网卡和 IP（每次重启可能变），和 Windows 之间是 NAT 关系。
+
+- **Windows → WSL**：不用记 IP。WSL 2 自带 localhost 转发，在 Windows 浏览器里直接开 `http://localhost:8080` 就能访问 WSL 里的服务。兜底时可以查 IP：
+
+  ```powershell
+  wsl hostname -I
+  ```
+
+- **WSL → Windows**：用默认网关地址（也就是 Windows 主机）：
+
+  ```bash
+  ip route show default | awk '{print $3}'
+  ```
+
+- **局域网其他机器 → WSL**：NAT 模式下默认不通，要手动做端口转发（**管理员** PowerShell），并放行防火墙：
+
+  ```powershell
+  wsl hostname -I          # 先拿到 WSL IP，例如 172.20.10.5
+  netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=8080 connectaddress=172.20.10.5
+  New-NetFirewallRule -DisplayName "WSL 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+  ```
+
+  删除：`netsh interface portproxy delete v4tov4 listenport=8080 listenaddress=0.0.0.0`。WSL 的 IP 变了要重新加，很烦——所以能用镜像模式就用镜像模式。
+
+### 10.2 镜像模式（推荐，Windows 11 22H2+ / WSL 2.0.0+）
+
+在 `%USERPROFILE%\.wslconfig` 里写：
+
+```ini
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+autoProxy=true
+```
+
+镜像模式下 WSL 和 Windows 共享网络接口：localhost 双向互通、IPv6 可用、VPN 兼容性更好，**不需要端口转发**，也能自动继承 Windows 的系统代理。
+
+### 10.3 DNS
+
+- 默认每次启动自动生成 `/etc/resolv.conf`，指向 Windows 的 DNS（NAT 模式下是虚拟网关地址）。
+- 连公司 VPN 或内网域名解析不了时，按顺序试：
+  1. `.wslconfig` 里加 `dnsTunneling=true`（见上）。
+  2. 还不行就关掉自动生成，自己维护：
+
+     ```ini
+     [wsl2]
+     generateResolvConf=false
+     ```
+
+     然后在发行版内自己写 `/etc/resolv.conf`，例如 `nameserver 10.0.0.2`。发行版重启后可能被覆盖，改完确认一下。
+
+### 10.4 代理
+
+- 只有「镜像模式 + `autoProxy=true`」会自动继承 Windows 的代理，NAT 模式不会。
+- 手动配置（写进 `~/.bashrc` 或 `/etc/environment`），注意 **NAT 模式要用 Windows 主机 IP，镜像模式用 `127.0.0.1`**：
+
+  ```bash
+  export http_proxy=http://<主机IP>:7890
+  export https_proxy=$http_proxy
+  export no_proxy=localhost,127.0.0.1
+  ```
+
+- `sudo` 不会继承代理，需要 `sudo -E <命令>`；`apt` 单独配 `/etc/apt/apt.conf.d/95proxy`：
+
+  ```
+  Acquire::http::Proxy "http://<主机IP>:7890";
+  Acquire::https::Proxy "http://<主机IP>:7890";
+  ```
+
+- 验证：`curl -I https://www.google.com`、`env | grep -i proxy`。
+
+## 11. 禁止在 WSL 中调用 Windows 程序
+
+WSL 默认开启 interop，并且把 Windows 的 `PATH` 追加到 Linux 的 `PATH` 后面。结果就是 Linux 里能直接跑 `notepad.exe`、`explorer.exe .`，`which code` 可能指向 Windows 的 exe，补全和脚本里也容易混进 .exe。
+
+关掉它：编辑发行版内的 `/etc/wsl.conf`（需要 sudo，没有就新建）：
+
+```ini
+[interop]
+enabled = false
+appendWindowsPath = false
+```
+
+两项可以单独用：
+
+| 配置 | 效果 |
+| --- | --- |
+| `appendWindowsPath = false` | 只清理 `PATH`，interop 仍可用：绝对路径 `/mnt/c/Windows/explorer.exe .` 还能调，`code .` 这类靠 Windows PATH 的命令会失效 |
+| `enabled = false` | 彻底禁止执行 `.exe`，`explorer.exe` 也会失败 |
+
+**副作用（选 `enabled = false` 前想清楚）**：
+
+- 所有 `.exe` 调用失效，包括部分依赖 interop 的工具（Docker Desktop 集成、从 Linux 里启动 Windows GUI 程序等）。
+- `code .` / `code-insiders .` 用不了；VS Code Remote-WSL 不受影响（它由 Windows 侧的 `wsl.exe` 拉起，走的是远程连接，不是 interop）。
+- 改完必须 `wsl --shutdown` 再重进发行版才生效。
+
+验证：
+
+```bash
+echo $PATH                     # 不应出现 /mnt/c/...
+which notepad.exe              # 应该没有输出
+cat /proc/sys/fs/binfmt_misc/WSLInterop   # enabled = false 时显示 disabled
+```
+
+**仅临时禁用**（重启发行版即恢复，适合跑一次干净的测试）：
+
+```bash
+sudo sh -c 'echo 0 > /proc/sys/fs/binfmt_misc/WSLInterop'
+```
