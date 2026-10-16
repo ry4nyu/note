@@ -64,7 +64,42 @@ wsl --set-version Ubuntu 2
 | `wsl --update` | 更新 WSL 内核 |
 | `wsl --unregister <名称>` | 删除发行版（会清空其中的数据，谨慎使用） |
 
-## 6. 手动安装（`wsl --install` 不可用时）
+## 6. Windows 与 WSL 之间传输文件
+
+WSL 会自动挂载 Windows 磁盘，所以大部分情况不需要“传输”工具，直接复制路径即可。
+
+**从 WSL 访问 Windows 文件**：Windows 的 C 盘挂载在 `/mnt/c`，D 盘为 `/mnt/d`，以此类推。
+
+```bash
+ls /mnt/c/Users
+cp /mnt/c/Users/ryan/Downloads/a.zip ~/      # Windows → WSL
+cp ~/a.zip /mnt/d/tmp/                       # WSL → Windows
+```
+
+**从 Windows 访问 WSL 文件**：在资源管理器地址栏输入 `\\wsl.localhost\<发行版名>`（旧写法 `\\wsl$\<发行版名>`），例如 `\\wsl.localhost\Ubuntu\home\ryan`。
+
+**在 WSL 里用资源管理器打开当前目录**：
+
+```bash
+cd ~/project && explorer.exe .
+```
+
+**注意**：
+
+- 跨 `/mnt/c` 读写比在 Linux 原生目录（`~/`）慢很多，代码放 `~/` 下，只把需要交换的文件拷过去。
+- 不要把 WSL 的 `~/` 当作 Windows 文件来长期编辑（VS Code 用 `code .` 连 WSL 远程即可）。
+- Windows 侧访问 `\\wsl.localhost\...` 需要 WSL 正在运行，`wsl --shutdown` 后会断连。
+
+**两台机器之间传**（WSL 有自己的 IP，也可以直接用 WSL 里的 `scp`/`rsync`）：
+
+```bash
+scp file.zip user@host:/path/          # 本机 → 远程
+rsync -avz ./dir/ user@host:/path/dir/ # 增量同步目录
+```
+
+若远端也是 Windows/WSL，可在 Windows 侧开 SSH 服务后用 `scp -P <端口>`，或走 SMB 共享挂载。
+
+## 7. 手动安装（`wsl --install` 不可用时）
 
 Windows 版本较旧时 `wsl --install` 可能不支持，需要手动启用功能，以管理员身份执行：
 
@@ -75,7 +110,7 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 重启电脑后，下载并安装 WSL 内核更新包（搜索“WSL2 Linux kernel update package for x64”），再执行第 4 节的设置命令，然后从 Microsoft Store 安装 Ubuntu。
 
-## 7. 常见问题
+## 8. 常见问题
 
 **1. 提示“未启用虚拟机平台”或“请在 BIOS 中启用虚拟化”**
 进入 BIOS 开启 Intel VT-x / AMD SVM，保存后重启。
@@ -92,7 +127,7 @@ Windows 版本过低，参考第 6 节手动安装，或先更新 Windows。
 **5. 想换安装位置**
 WSL 的数据默认在 `%LOCALAPPDATA%\Packages\` 下。可用 `wsl --export <名称> <tar路径>` 导出，再用 `wsl --import <名称> <安装目录> <tar路径>` 导入到其他盘。
 
-## 8. 验证安装
+## 9. 验证安装
 
 在 PowerShell 中执行：
 
