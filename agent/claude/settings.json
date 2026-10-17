@@ -1,0 +1,22 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://aigateway-us.dreo-tech.com:16666",
+    "ANTHROPIC_MODEL": "deepseek-flash",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "deepseek-flash",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "bedrock-claude-haiku-5-5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES": "thinking,interleaved_thinking",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES": "thinking,interleaved_thinking",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES": "thinking,interleaved_thinking",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Claude Haiku 5.5 (Bedrock)",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "theme": "light",
+  "skipAutoPermissionPrompt": true,
+  "model": "opus"
+}
