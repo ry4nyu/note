@@ -1,119 +1,73 @@
-# WSL 安装与配置指南
+# WSL 开发环境配置
 
-以 WSL 2 为准（Windows 10 2004+/11）。PowerShell 命令需要管理员权限的会单独标注。
+Windows 11 + WSL 2。装完后**有两件事必须配**，不配后面全是坑：镜像模式网络、禁止 WSL 调 Windows 程序。
 
-## 1. 环境要求
+## 0. 检查清单
 
-- Windows 10 版本 2004 及以上（内部版本 19041+），或 Windows 11；64 位。
-- BIOS/UEFI 中开启虚拟化：Intel 为 VT-x，AMD 为 SVM。
-- 验证方式二选一：
-  - 任务管理器 → 性能 → CPU，显示"虚拟化: 已启用"。
-  - `(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled` 为 `True`。
+- [ ] BIOS 虚拟化已开，`wsl -l -v` 的 VERSION 是 `2`
+- [ ] `%USERPROFILE%\.wslconfig` 写了 `networkingMode=mirrored`
+- [ ] `/etc/wsl.conf` 写了 `[interop] enabled = false` / `appendWindowsPath = false`
+- [ ] 改完执行过 `wsl --shutdown`，再重进
+- [ ] 两条验证通过（2.3、3.4）
 
-## 2. 安装
+## 1. 安装
 
-### 2.1 一键安装（推荐）
+### 1.1 要求
 
-```powershell
-wsl --install
-```
+- Windows 11（或 Win10 2004+/19041+），64 位。
+- BIOS/UEFI 开启虚拟化：Intel VT-x / AMD SVM。任务管理器 → 性能 → CPU 显示"虚拟化: 已启用"。
 
-自动启用所需功能、安装 WSL 2 和默认 Ubuntu 发行版。完成后**重启电脑**，重启后会自动打开 Ubuntu 窗口，按提示设置用户名和密码（输入密码不回显字符，属正常）。
-
-> **装不上基本都是网络问题**：WSL 下载器走 WinINet/WinHTTP，浏览器能上网不代表它能下载。代理必须覆盖 WinHTTP/WinINet（推荐开代理软件的 TUN 模式），关掉代理反而装不上。详见 8.2。
-
-### 2.2 安装指定发行版
+### 1.2 一键安装
 
 ```powershell
-wsl --list --online          # 查看可用发行版
-wsl --install -d Ubuntu-26.04
+wsl --install                  # 装 WSL 2 + 默认 Ubuntu，完成后重启
+wsl --install -d Ubuntu-26.04  # 指定发行版，--no-launch 只装不启动
+wsl --list --online            # 看有哪些
 ```
 
-加 `--no-launch` 表示只安装、不立即启动。
+重启后自动弹出 Ubuntu 窗口，按提示建用户名密码（输密码不回显，正常）。
 
-### 2.3 手动安装（`wsl --install` 不可用）
+> 装不上基本都是网络问题，不是虚拟化问题——见 5.2。WSL 下载器走 WinINet/WinHTTP，浏览器能上网不代表它能下载。
 
-老系统上 `wsl --install` 会报"无效的命令行选项"，用 DISM 手动启用功能：
+### 1.3 确认是 WSL 2
+
+```powershell
+wsl -l -v                      # VERSION 列应为 2，STATE 为 Running/Stopped
+wsl --set-default-version 2
+wsl --set-version Ubuntu 2     # 仍是 1 的手动转换
+```
+
+```bash
+sudo apt update && sudo apt upgrade -y
+uname -a                       # 确认内核
+```
+
+### 1.4 `wsl --install` 报"无效的命令行选项"
+
+系统太老，手动启用功能后重启（**管理员** PowerShell）：
 
 ```powershell
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
 dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
 ```
 
-重启后安装 WSL 内核更新包（搜索"WSL2 Linux kernel update package for x64"），执行 2.4 的设置命令，再从 Microsoft Store 安装 Ubuntu。
+然后装 WSL2 内核更新包（搜"WSL2 Linux kernel update package for x64"），回到 1.3。
 
-### 2.4 设为 WSL 2 并验证
+## 2. 必配一：镜像模式
 
-```powershell
-wsl --set-default-version 2
-wsl -l -v                     # VERSION 列应为 2
-wsl --set-version Ubuntu 2    # 仍是 1 的发行版手动转换
-```
+### 2.1 为什么必须配
 
-看到发行版、VERSION 为 2、STATE 为 Running 或 Stopped 即安装成功；进入 Linux 后 `uname -a` 可确认内核。初始化：
+默认 NAT 模式下 WSL 是独立虚拟网卡 + 私有 IP，带来三个固定麻烦：
 
-```bash
-sudo apt update && sudo apt upgrade -y
-```
+- Windows 侧的代理软件只监听 `127.0.0.1`，WSL 看不到 → 每次启动报"检测到 localhost 代理配置，但未镜像到 WSL"，`http_proxy` 为空，一切下载都失败。
+- 局域网其他机器访问 WSL 要手动端口转发 + 放行防火墙，IP 一变就得重配。
+- 连 VPN 时路由/DNS 容易坏。
 
-## 3. 常用命令
+镜像模式让 WSL 和 Windows 共用网络接口，以上全部消失。
 
-| 命令 | 作用 |
-| --- | --- |
-| `wsl` | 进入默认发行版 |
-| `wsl -d <名称>` | 进入指定发行版 |
-| `wsl -l -v` | 查看已安装发行版和状态 |
-| `wsl --shutdown` | 关闭所有 WSL 实例（改配置后必做） |
-| `wsl --update` | 更新 WSL 内核 |
-| `wsl --unregister <名称>` | 删除发行版（**清空其中数据**） |
+### 2.2 配置
 
-## 4. Windows 与 WSL 之间的文件
-
-WSL 自动挂载 Windows 磁盘，多数情况不需要"传输"，复制路径即可。
-
-**WSL 访问 Windows**：C 盘是 `/mnt/c`，D 盘是 `/mnt/d`，以此类推。
-
-```bash
-ls /mnt/c/Users
-cp /mnt/c/Users/ryan/Downloads/a.zip ~/      # Windows → WSL
-cp ~/a.zip /mnt/d/tmp/                       # WSL → Windows
-```
-
-**Windows 访问 WSL**：资源管理器地址栏输入 `\\wsl.localhost\<发行版名>`（旧写法 `\\wsl$\<发行版名>`），例如 `\\wsl.localhost\Ubuntu\home\ryan`。
-
-**在 WSL 里用资源管理器打开当前目录**：
-
-```bash
-cd ~/project && explorer.exe .
-```
-
-注意：
-
-- 跨 `/mnt/c` 读写比 Linux 原生目录（`~/`）慢很多：代码放 `~/`，只把要交换的文件拷过去。
-- 不要长期用 Windows 侧工具直接编辑 `~/` 里的文件，用 VS Code 的 `code .` 走 WSL 远程。
-- `\\wsl.localhost\...` 需要 WSL 正在运行，`wsl --shutdown` 后会断连。
-
-## 5. 网络、DNS 与代理
-
-先分清两个配置文件：`.wslconfig` 在 Windows 用户目录（`%USERPROFILE%\.wslconfig`），管所有发行版；`/etc/wsl.conf` 在发行版内部，只管当前发行版。**两者改完都要 `wsl --shutdown` 再重进才生效。**
-
-### 5.1 网络模式
-
-**默认 NAT 模式**：WSL 2 有独立虚拟网卡和 IP（每次重启可能变），与 Windows 是 NAT 关系。
-
-- Windows → WSL：WSL 2 自带 localhost 转发，浏览器直接开 `http://localhost:8080` 即可。兜底查 IP：`wsl hostname -I`。
-- WSL → Windows：用默认网关地址，即 `ip route show default | awk '{print $3}'`。
-- 局域网其他机器 → WSL：默认不通，需端口转发 + 放行防火墙（**管理员** PowerShell）：
-
-  ```powershell
-  wsl hostname -I          # 先拿 WSL IP，例如 172.20.10.5
-  netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=8080 connectaddress=172.20.10.5
-  New-NetFirewallRule -DisplayName "WSL 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
-  ```
-
-  删除：`netsh interface portproxy delete v4tov4 listenport=8080 listenaddress=0.0.0.0`。WSL IP 变了要重新加，很烦——能用镜像模式就用镜像模式。
-
-**镜像模式（推荐，Windows 11 22H2+ / WSL 2.0.0+）**：在 `%USERPROFILE%\.wslconfig` 写
+新建或编辑 `%USERPROFILE%\.wslconfig`（Windows 用户目录，管所有发行版）：
 
 ```ini
 [wsl2]
@@ -122,47 +76,59 @@ dnsTunneling=true
 autoProxy=true
 ```
 
-WSL 与 Windows 共享网络接口：localhost 双向互通、IPv6 可用、VPN 兼容性更好，**不需要端口转发**，也能自动继承 Windows 系统代理。
+**当前机器上的实际配置就是这样，已验证可用**（代理 xray 监听 `127.0.0.1:10808`，WSL 内自动拿到 `http_proxy`）。
 
-### 5.2 DNS
+生效：
 
-默认每次启动自动生成 `/etc/resolv.conf`，指向 Windows 的 DNS（NAT 模式下是虚拟网关地址）。连公司 VPN 或内网域名解析不了时按顺序试：
+```powershell
+wsl --shutdown      # 会关掉所有 WSL 会话
+```
 
-1. `.wslconfig` 里加 `dnsTunneling=true`（见上）。
-2. 还不行就关闭自动生成，自己维护：
+### 2.3 验证
 
-   ```ini
-   [wsl2]
-   generateResolvConf=false
-   ```
+```bash
+env | grep -i proxy                                   # 应有 http_proxy=http://127.0.0.1:10808
+ip -4 addr | grep -c 'inet 172\.'                     # 应为 0（没有 NAT 私网地址了）
+curl -sS -o /dev/null -w '%{http_code}\n' https://www.google.com   # 200
+```
 
-   然后在发行版内写 `/etc/resolv.conf`，例如 `nameserver 10.0.0.2`。发行版重启后可能被覆盖，改完确认一下。
+启动时不再出现 localhost 代理警告，即成功。
 
-### 5.3 代理
+### 2.4 镜像模式的副作用
 
-- 只有「镜像模式 + `autoProxy=true`」会自动继承 Windows 代理，NAT 模式不会。
-- 手动配置（写进 `~/.bashrc` 或 `/etc/environment`）：**NAT 模式填 Windows 主机 IP，镜像模式填 `127.0.0.1`**。
+- WSL 的 `127.0.0.1` 与 Windows 同源：**Windows 已占用的端口，WSL 里绑不上**。真需要就配 `ignoredPorts=3000,9090`（镜像模式专用）。
+- 反过来 WSL 里起的服务，Windows 侧 `localhost:端口` 直接能访问，不用再 `localhostForwarding` 折腾。
 
-  ```bash
-  export http_proxy=http://<主机IP>:7890
-  export https_proxy=$http_proxy
-  export no_proxy=localhost,127.0.0.1
-  ```
+### 2.5 备选：consomme 模式
 
-- `sudo` 不继承代理，需要时 `sudo -E <命令>`；`apt` 单独配 `/etc/apt/apt.conf.d/95proxy`：
+镜像模式出问题（端口冲突、VPN、防火墙误拦）时换它，WSL 2.9.3+：
 
-  ```
-  Acquire::http::Proxy "http://<主机IP>:7890";
-  Acquire::https::Proxy "http://<主机IP>:7890";
-  ```
+```ini
+[wsl2]
+networkingMode=consomme
+virtio=true
+```
 
-- 验证：`curl -I https://www.google.com`、`env | grep -i proxy`。
+用户态 NAT，行为仍属 NAT 一类：localhost 转发有，局域网访问仍需端口转发。旧名 `virtioproxy` 也认。
 
-## 6. 禁止在 WSL 中调用 Windows 程序
+| 模式 | 网络身份 | Windows → WSL | 局域网 → WSL | 继承系统代理 |
+| --- | --- | --- | --- | --- |
+| `nat`（默认） | 私有 IP | localhost 转发 | 端口转发 | 否 |
+| `mirrored`（推荐） | 共用 Windows 网卡 | localhost 全通 | 通 | `autoProxy=true` 自动 |
+| `consomme` | 私有 IP（用户态 NAT） | localhost 转发 | 端口转发 | 否 |
+| `none` | 无网络 | — | — | — |
 
-WSL 默认开启 interop，并把 Windows 的 `PATH` 追加到 Linux `PATH` 后面。结果是 Linux 里能直接跑 `notepad.exe`、`explorer.exe .`，`which code` 可能指向 Windows 的 exe，补全和脚本里也容易混进 `.exe`。
+> `networkingMode=nat` 失败时 WSL 会自动回落到 consomme（2.3.25+），所以"NAT 模式"下的怪行为先确认实际跑的哪个。
 
-关掉它——编辑发行版内 `/etc/wsl.conf`（需要 sudo，没有就新建）：
+## 3. 必配二：禁止 WSL 调用 Windows 程序
+
+### 3.1 为什么
+
+WSL 默认开启 interop，并把 Windows `PATH` 追加到 Linux `PATH` 后面。后果：Linux 里能跑 `notepad.exe`、`explorer.exe .`，`which code` 可能指向 Windows 的 exe，补全和脚本里混进 `.exe`，PATH 里多出几十条 `/mnt/c/...`。
+
+### 3.2 配置
+
+编辑发行版内 `/etc/wsl.conf`（需要 sudo；**保留已有内容**，不要覆盖 `[boot]`/`[user]`）：
 
 ```ini
 [interop]
@@ -170,184 +136,191 @@ enabled = false
 appendWindowsPath = false
 ```
 
-两项可单独使用：
+**当前机器上的实际配置**（改前备份在 `/etc/wsl.conf.bak`）：
+
+```ini
+[boot]
+systemd=true
+
+[user]
+default=ryanyu
+
+[interop]
+enabled = false
+appendWindowsPath = false
+```
+
+两项可单独用：
 
 | 配置 | 效果 |
 | --- | --- |
-| `appendWindowsPath = false` | 只清理 `PATH`，interop 仍可用：绝对路径 `/mnt/c/Windows/explorer.exe .` 还能调，`code .` 这类靠 Windows PATH 的命令会失效 |
-| `enabled = false` | 彻底禁止执行 `.exe`，`explorer.exe` 也会失败 |
+| `appendWindowsPath = false` | 只清 `PATH`，interop 仍可用：`/mnt/c/Windows/explorer.exe .` 还能调，`code .` 这类靠 Windows PATH 的失效 |
+| `enabled = false` | 彻底禁止执行 `.exe` |
 
-选 `enabled = false` 前想清楚副作用：
+### 3.3 副作用
 
-- 所有 `.exe` 调用失效，包括依赖 interop 的工具（Docker Desktop 集成、从 Linux 启动 Windows GUI 程序等）。
-- `code .` / `code-insiders .` 用不了；VS Code Remote-WSL 不受影响（它由 Windows 侧 `wsl.exe` 拉起，走远程连接，不是 interop）。
-- 改完必须 `wsl --shutdown` 再重进才生效。
+- 所有 `.exe` 调用失效：`explorer.exe .`、`code .`、从 Linux 启动 Windows GUI 程序、Docker Desktop 集成。
+- VS Code Remote-WSL **不受影响**（Windows 侧 `wsl.exe` 拉起远程连接，不走 interop）。
+- 想用 `code .` 或 Docker Desktop 集成，就把这两行删掉。
 
-验证：
+### 3.4 验证
 
 ```bash
-echo $PATH                                   # 不应出现 /mnt/c/...
-which notepad.exe                            # 应该没有输出
-cat /proc/sys/fs/binfmt_misc/WSLInterop      # enabled = false 时显示 disabled
+echo $PATH | tr ':' '\n' | grep -c '^/mnt/c'   # 0
+command -v notepad.exe                         # 空
+notepad.exe                                    # 报 UtilAcceptVsock ... accept4 failed
 ```
 
-**仅临时禁用**（重启发行版即恢复，适合跑一次干净测试）：
+`cat /proc/sys/fs/binfmt_misc/WSLInterop` 在 WSL 3.x 下仍显示 `enabled`，**别拿它判断**。
+
+仅在本次会话临时禁用（重启发行版即恢复）：
 
 ```bash
 sudo sh -c 'echo 0 > /proc/sys/fs/binfmt_misc/WSLInterop'
 ```
 
-## 7. 在 Linux 中配置环境变量
+## 4. 日常操作
 
-先想清楚两件事：**给谁用**（当前 shell / 所有用户 / 某个服务）、**什么时候读**（登录时 / 每次开 shell / 只在脚本里）。选错位置是"改了没生效"的唯一原因。
+### 4.1 常用命令
 
-### 7.1 放哪里
+| 命令 | 作用 |
+| --- | --- |
+| `wsl` / `wsl -d <名称>` | 进入默认 / 指定发行版 |
+| `wsl -l -v` | 看发行版和状态 |
+| `wsl --shutdown` | 关闭所有实例（**改任何配置后必做**） |
+| `wsl --update` | 更新 WSL 内核 |
+| `wsl --unregister <名称>` | 删除发行版（**清空数据**） |
+| `wsl -u root -e bash -c '...'` | 免密执行 root 命令 |
 
-| 位置 | 生效范围 | 生效时机 | 适用场景 |
-| --- | --- | --- | --- |
-| `export FOO=1` | 当前 shell 及其子进程 | 立即 | 临时测试 |
-| `~/.bashrc` | 当前用户 | 每次打开交互式 shell | 最常用：PATH、别名 |
-| `~/.profile` | 当前用户 | 登录时（含 `wsl` 启动、SSH 登录） | 只该设一次的东西 |
-| `/etc/environment` | 所有用户 | 登录时，由 PAM 读取 | 全机统一变量；**只能写 `KEY=VALUE`，不支持 `$PATH` 和 `export`** |
-| `/etc/profile.d/foo.sh` | 所有用户 | 登录时 | 需要逻辑或 `$PATH` 拼接的全机变量 |
+### 4.2 文件互访
 
-WSL 里打开的终端通常是交互式登录 shell，`~/.bashrc` 和 `~/.profile` 都会读，所以写在 `~/.bashrc` 最省事：
+WSL 访问 Windows：C 盘是 `/mnt/c`。
+
+```bash
+ls /mnt/c/Users
+cp /mnt/c/Users/ryan/Downloads/a.zip ~/
+```
+
+Windows 访问 WSL：资源管理器输入 `\\wsl.localhost\<发行版名>`，例如 `\\wsl.localhost\Ubuntu-26.04\home\ryanyu`。需要 WSL 正在运行，`wsl --shutdown` 后会断连。
+
+- 跨 `/mnt/c` 读写比 `~/` 慢很多：代码放 `~/`，只拷要交换的文件。
+- 别用 Windows 侧工具直接编辑 `~/` 里的文件，用 VS Code 的 Remote-WSL。
+
+### 4.3 环境变量
+
+选错位置是"改了没生效"的唯一原因。WSL 终端通常是交互式登录 shell，`~/.bashrc` 和 `~/.profile` 都会读，写 `~/.bashrc` 最省事。
+
+| 位置 | 生效范围 | 时机 |
+| --- | --- | --- |
+| `export FOO=1` | 当前 shell | 立即，临时测试 |
+| `~/.bashrc` | 当前用户 | 每次开交互式 shell（最常用） |
+| `~/.profile` | 当前用户 | 登录时 |
+| `/etc/environment` | 所有用户 | 登录时，**只能写 `KEY=VALUE`** |
+| `/etc/profile.d/foo.sh` | 所有用户 | 登录时，可写逻辑和 `$PATH` |
 
 ```bash
 # 追加到 ~/.bashrc 末尾
 export EDITOR=vim
-export PATH="$HOME/.local/bin:$PATH"   # $PATH 放后面，别把系统路径盖掉
+export PATH="$HOME/.local/bin:$PATH"   # 新路径放前面才优先
+source ~/.bashrc
 ```
 
-```bash
-source ~/.bashrc      # 立刻生效，或直接关掉重开终端
-```
+三个坑：
 
-### 7.2 验证
+- `sudo` 不继承变量 → `sudo -E <命令>`；系统级写 `/etc/environment`。
+- cron / systemd / `ssh host 'cmd'` 不走交互式 shell，读不到 `~/.bashrc`。
+- `export PATH="$PATH:新路径"` 会把优先级搞反。
 
-```bash
-echo $EDITOR                     # 看单个变量
-env | grep -i proxy              # 看一类变量
-printenv PATH | tr ':' '\n'      # 按行看 PATH 每一项
-bash -lc 'echo $EDITOR'          # 模拟登录 shell，确认写对了文件
-bash -c 'echo $EDITOR'           # 非交互 shell 不读 ~/.bashrc，为空属正常
-```
+Windows 的 `PATH` 已在第 3 节关掉；其他变量要传用 `WSLENV`（`$env:WSLENV = "FOO/p"`），但多数项目各写各的更简单。
 
-### 7.3 三个常见坑
+### 4.4 代理与 DNS
 
-- **`sudo` 不继承**：环境变量会被清掉，需要时用 `sudo -E <命令>`（`sudoers` 里 `env_reset` 限制的变量仍会丢弃）。系统级变量写 `/etc/environment` 更稳。
-- **非交互场景读不到 `~/.bashrc`**：cron、systemd 服务、`ssh host 'cmd'` 都不走交互式 shell。systemd 用 unit 里的 `Environment=FOO=1` 或 `EnvironmentFile=/etc/foo.env`；cron 直接在 crontab 顶部写 `FOO=1`。
-- **PATH 顺序写反**：`export PATH="$PATH:$HOME/.local/bin"` 会让同名程序继续用系统那个；想优先用自己的，新路径必须放前面。
+- 镜像模式 + `autoProxy=true`：`http_proxy`/`https_proxy`/`no_proxy` 自动注入发行版，不用手写。
+- `sudo` 不继承代理：`sudo -E apt update`；`apt` 也可单独配 `/etc/apt/apt.conf.d/95proxy`：
 
-### 7.4 与 Windows 环境变量互通
+  ```
+  Acquire::http::Proxy "http://127.0.0.1:10808";
+  Acquire::https::Proxy "http://127.0.0.1:10808";
+  ```
 
-WSL 默认把 Windows 的 `PATH` 追加到 Linux `PATH` 后面（见第 6 节关掉它），其他 Windows 变量**不会**自动进来。需要传的话在 Windows 侧用 `WSLENV`：
+- DNS 解析不了内网域名：先确认 `.wslconfig` 里有 `dnsTunneling=true`（已配）。还不行就 `generateResolvConf=false` 并自己维护 `/etc/resolv.conf`。
+- Windows 侧改代理端口/开关后，WSL 里执行 `wsl --shutdown` 再进才会重新镜像。
+
+## 5. 排错
+
+### 5.1 `HCS_E_HYPERV_NOT_INSTALLED`（"此计算机上未启用虚拟化"）
+
+现象：下载安装都正常，创建虚拟机时失败，提示去运行 `wsl.exe --install --no-distribution`。**照着提示装 Windows 功能是无效的**，真实原因在 BIOS。
 
 ```powershell
-# /p 表示路径，/l 表示只往 Linux 传
-$env:WSLENV = "FOO/p"
-```
-
-多数项目里更简单的做法是各写各的：Linux 配置放 `~/.bashrc`，Windows 配置放系统环境变量，互不依赖。
-
-## 8. 常见问题
-
-### 8.1 `HCS_E_HYPERV_NOT_INSTALLED`（"此计算机上未启用虚拟化"）
-
-典型现象：`wsl --install -d Ubuntu-26.04` 下载、安装都正常，最后创建虚拟机时失败，并提示"运行 `wsl.exe --install --no-distribution` 启用虚拟机平台"。**照着提示去装 Windows 功能是无效的**，真实原因在 BIOS。
-
-三条命令定位卡在哪一层：
-
-```powershell
-(Get-CimInstance Win32_Processor).VMMonitorModeExtensions          # CPU 是否支持虚拟化
-(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled    # BIOS 是否把虚拟化交给系统
-(Get-CimInstance Win32_ComputerSystem).HypervisorPresent           # 是否有 Hypervisor 在跑
+(Get-CimInstance Win32_Processor).VMMonitorModeExtensions          # CPU 支持虚拟化
+(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled    # BIOS 交给了系统
+(Get-CimInstance Win32_ComputerSystem).HypervisorPresent           # 有 Hypervisor 在跑
 ```
 
 | 现象 | 结论 |
 | --- | --- |
 | `True` / `False` / `False` | **BIOS 里 SVM/VT-x 没开**，最常见 |
-| `True` / `True` / `True` | 已经好了，不必再管虚拟化 |
-| 三项都 `True` 但仍报错 | Windows 功能或 VBS 冲突，见第 2 步 |
-| `False` / `True` / `True` | **正常**：hypervisor 已接管，root partition 看不到原始虚拟化扩展，这是启用成功的标志 |
-| `False` / `False` / `False` | CPU/主板不支持，或虚拟化被厂商锁死 |
+| `False` / `True` / `True` | **正常**：hypervisor 已接管，root partition 看不到原始扩展 |
+| `True` / `True` / `True` | 已就绪，别再管虚拟化 |
+| 都 `True` 仍报错 | Windows 功能或 VBS 冲突，见下 |
+| 都 `False` | CPU/主板不支持，或厂商锁死 |
 
 修复顺序不能颠倒：
 
-1. **进 BIOS 开 SVM**（AMD）/ VT-x（Intel）。ASUS AMI BIOS 一般在 `Advanced` → `CPU Configuration` → `SVM Mode` → `Enabled`；找不到就在 `Advanced` → `AMD CBS` → `CPU Common Options` → `SVM`。顺手打开 `IOMMU`、`Above 4G Decoding`。
-2. **重启回系统后**确认 `VirtualizationFirmwareEnabled` 变 `True`，执行 `wsl --install --no-distribution`（一条命令启用全部所需组件），**再重启一次**。
-3. 最后 `wsl --set-default-version 2`，再 `wsl --install -d Ubuntu-26.04`。
+1. 进 BIOS 开 SVM（AMD）/ VT-x（Intel）：ASUS AMI 一般在 `Advanced` → `CPU Configuration` → `SVM Mode` → `Enabled`，或 `Advanced` → `AMD CBS` → `CPU Common Options` → `SVM`。顺手开 `IOMMU`、`Above 4G Decoding`。
+2. 重启回系统后确认 `VirtualizationFirmwareEnabled` 变 `True`，执行 `wsl --install --no-distribution`，**再重启一次**。
+3. `wsl --set-default-version 2`，再装发行版。
 
-做完第 1 步仍失败，按命中率排查：
+仍失败按命中率排查：关掉内存完整性（内核隔离）→ 卸载 VMware/VirtualBox/安卓模拟器/国产安全驱动 → `wsl --update`。
 
-- **内存完整性**（Windows 安全中心 → 设备安全性 → 内核隔离）开着会和 SVM 抢 VBS 权限，关掉重启。
-- VMware / VirtualBox / 安卓模拟器 / 国产安全驱动占用了虚拟化层，先卸载。
-- WSL 版本太旧（`wsl --update`）。Insider 通道的 Windows + WSL 组合更容易出这个问题。
-- 别把 BIOS 里的 SVM 和杀毒软件那个 SVM 搞混。
+> 案例：AMD Ryzen 7 5700X3D + ASUS AMI BIOS，Win11 26300，WSL 已装且默认版本为 2，装 Ubuntu-26.04 报此错。诊断 `True / False / False`，即 BIOS 未开 SVM，与 Windows 功能无关。
 
-> 案例：AMD Ryzen 7 5700X3D + ASUS AMI BIOS，Windows 11 26300，WSL 3.0.3.0 已装、默认版本已是 2，装 Ubuntu-26.04 报此错。诊断为 `True / False / False`，即 BIOS 未开 SVM，与 Windows 功能无关。
+### 5.2 `WININET_E_INVALID_SERVER_RESPONSE` / 卡在"正在下载"
 
-### 8.2 `WININET_E_INVALID_SERVER_RESPONSE` / 卡在"正在下载"
-
-虚拟化已就绪（`VirtualizationFirmwareEnabled=True`、`HypervisorPresent=True`），但 `wsl -l -v` 报"没有已安装的分发"——问题在**下载通道被墙**，不在虚拟化。
+虚拟化已就绪（`VirtualizationFirmwareEnabled=True`、`HypervisorPresent=True`）但 `wsl -l -v` 说没有发行版——问题在**下载通道**，不在虚拟化。
 
 判据（三条都命中即可确定是网络）：
 
 ```powershell
-# 1. 短链被劫持或失效：应跳到微软/WSL 页面，跳到 bing.com 就是失败
-curl.exe -I -L "https://aka.ms/wslubuntu2604" | Select-String -Pattern 'Location'
-# 2. 微软分发 CDN 的 DNS 被污染（解析为空）
-Resolve-DnsName delivery.mp.microsoft.com
-# 3. WinHTTP 无代理，但系统代理开着
-netsh winhttp show proxy
+curl.exe -I -L "https://aka.ms/wslubuntu2604" | Select-String 'Location'   # 跳 bing.com 就是失败
+Resolve-DnsName delivery.mp.microsoft.com                                  # 解析为空 = DNS 被污染
+netsh winhttp show proxy                                                   # Direct = WinHTTP 无代理
 ```
 
-WSL 下载器与浏览器/`Invoke-WebRequest` 走不同网络栈，所以会出现"浏览器能上网，`wsl --install` 就是下载不了"。
+WSL 下载器走 WinINet/WinHTTP，和浏览器不是一条网络栈，所以"浏览器能上网，`wsl --install` 下不动"很常见。
 
 修复，按成功率排序：
 
-1. **代理软件开 TUN 模式**（需管理员）：接管全部流量和 DNS 解析，污染域名也能解出来。然后 `wsl --install -d Ubuntu-26.04 --no-launch`。一次成功率最高。
+1. **代理软件开 TUN 模式**（管理员），接管全部流量和 DNS，然后：
+   ```powershell
+   wsl --install -d Ubuntu-26.04 --no-launch
+   ```
 2. **给 WinHTTP 也配代理**（管理员），用完还原：
-
    ```powershell
    netsh winhttp set proxy 127.0.0.1:10808
    wsl --install -d Ubuntu-26.04 --no-launch
    netsh winhttp reset proxy
    ```
-
-   端口要填代理软件的 **HTTP 入站**端口。v2rayN 默认 10808=SOCKS、10809=HTTP，填错协议同样报 `WININET_E_INVALID_SERVER_RESPONSE`。
-3. **兜底：手动下载镜像再导入**，完全不依赖微软通道：
-
+   端口要填代理软件的 **HTTP 入站**端口，填成 SOCKS 端口同样报这个错。查端口归属：
    ```powershell
-   # 用浏览器走代理下载 https://cdimages.ubuntu.com/ubuntu-wsl/<代号>/ 下的 rootfs.tar.gz
+   Get-NetTCPConnection -State Listen -LocalPort 10808,10809 |
+     ForEach-Object { "port $($_.LocalPort) <- $((Get-Process -Id $_.OwningProcess).ProcessName)" }
+   ```
+3. **兜底：手动下载镜像再导入**，完全不依赖微软通道：
+   ```powershell
+   # 浏览器走代理下载 https://cdimages.ubuntu.com/ubuntu-wsl/<代号>/ 下的 rootfs.tar.gz
    # 26.04 = resolute，24.04 = noble
-   wsl --import Ubuntu-26.04 D:\WSL\Ubuntu-26.04 <下载的rootfs.tar.gz> --version 2
+   wsl --import Ubuntu-26.04 D:\WSL\Ubuntu-26.04 <rootfs.tar.gz> --version 2
    wsl -d Ubuntu-26.04
    ```
+   `--import` 出来的不在 `wsl --install` 列表里，首次启动是 root，需自己 `adduser`。
 
-   `--import` 出来的发行版不出现在 `wsl --install` 列表里，首次启动是 root（需自己 `adduser`）。
+> 案例：`wsl --list --online` 能出列表，`wsl --install -d Ubuntu-26.04` 卡 10 分钟无进展；加 `--web-download` 报 `Wsl/InstallDistro/WININET_E_INVALID_SERVER_RESPONSE`；同时 `aka.ms/wslubuntu2604` 跳 bing.com、`delivery.mp.microsoft.com` 解析为空、WinHTTP 显示 Direct。根因是代理未覆盖 WinInet/WinHTTP。
 
-排查代理时先分清端口协议：
+### 5.3 其他
 
-```powershell
-Get-NetTCPConnection -State Listen -LocalPort 10808,10809 | ForEach-Object {
-  "port $($_.LocalPort) <- $((Get-Process -Id $_.OwningProcess).Name)" }
-```
-
-> 案例：同机开 SVM 后 `VirtualizationFirmwareEnabled`、`HypervisorPresent` 均为 `True`，而 `VMMonitorModeExtensions`/`SLAT` 变 `False`（正常现象）。`wsl --list --online` 能出列表，但 `wsl --install -d Ubuntu-26.04` 卡 10 分钟无进展，加 `--web-download` 后报 `Wsl/InstallDistro/WININET_E_INVALID_SERVER_RESPONSE`；同时 `aka.ms/wslubuntu2604` 跳 bing.com、`delivery.mp.microsoft.com` 解析为空、WinHTTP 显示 Direct。根因是代理未覆盖 WinINet/WinHTTP。
-
-### 8.3 `WSL 2 requires an update to its kernel component`
-
-执行 `wsl --update`，然后 `wsl --shutdown` 重启 WSL。
-
-### 8.4 `wsl --install` 无反应或报"无效的命令行选项"
-
-Windows 版本过低：参考 2.3 手动安装，或先更新 Windows。
-
-### 8.5 安装卡在 0% 或长时间无进展
-
-不是"稍等就好"。先确认是否卡在下载：`wsl -l -v` 若无发行版，多半是代理未覆盖 WinHTTP/WinINet，按 8.2 排查。
-
-### 8.6 想换安装位置
-
-WSL 数据默认在 `%LOCALAPPDATA%\Packages\` 下。用 `wsl --export <名称> <tar路径>` 导出，再 `wsl --import <名称> <安装目录> <tar路径>` 导入到其他盘。
+- `WSL 2 requires an update to its kernel component` → `wsl --update`，然后 `wsl --shutdown`。
+- 安装卡 0% 或长时间无进展 → 先 `wsl -l -v`，没有发行版就是下载被卡，按 5.2 处理，不是"再等等"。
+- 想换安装位置 → `wsl --export <名称> <tar>`，再 `wsl --import <名称> <目录> <tar>`；数据默认在 `%LOCALAPPDATA%\Packages\`。
+- 配置改了不生效 → 十有八九漏了 `wsl --shutdown`。`.wslconfig` 管所有发行版，`/etc/wsl.conf` 只管当前发行版。
