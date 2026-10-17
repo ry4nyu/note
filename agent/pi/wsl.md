@@ -39,6 +39,7 @@ wsl --set-version Ubuntu 2     # 仍是 1 的手动转换
 
 ```bash
 sudo apt update && sudo apt upgrade -y
+sudo apt install wl-clipboard
 uname -a                       # 确认内核
 ```
 
