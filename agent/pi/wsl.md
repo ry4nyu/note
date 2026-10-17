@@ -8,6 +8,7 @@ WSL（Windows Subsystem for Linux）让你在 Windows 上直接运行 Linux 环�
 - 64 位系统。
 - 在 BIOS/UEFI 中开启虚拟化（Intel 为 VT-x，AMD 为 SVM）。
   - 任务管理器 → 性能 → CPU，若显示“虚拟化: 已启用”即可。
+  - 或命令行验证，必须为 `True`：`(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled`
 
 ## 2. 一键安装（推荐）
 
@@ -30,10 +31,10 @@ wsl --install
 wsl --list --online
 ```
 
-安装指定版本，例如 Debian：
+安装指定版本，例如 Ubuntu-26.04：
 
 ```powershell
-wsl --install -d Debian
+wsl --install -d Ubuntu-26.04
 ```
 
 ## 4. 设置 WSL 2 为默认版本
@@ -115,6 +116,41 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 **1. 提示“未启用虚拟机平台”或“请在 BIOS 中启用虚拟化”**
 进入 BIOS 开启 Intel VT-x / AMD SVM，保存后重启。
+
+**1.1 错误码 `HCS_E_HYPERV_NOT_INSTALLED`（“WSL2 无法启动，因为此计算机上未启用虚拟化”）**
+
+典型现象：`wsl --install -d Ubuntu-26.04` 显示“正在下载”“正在安装”都正常，最后创建虚拟机时失败，并附带建议“运行 `wsl.exe --install --no-distribution` 启用虚拟机平台”。**照着提示去装 Windows 功能是无效的**，因为真实原因在 BIOS。
+
+先诊断，三条命令判断卡在哪一层：
+
+```powershell
+(Get-CimInstance Win32_Processor).VMMonitorModeExtensions          # CPU 是否支持虚拟化，AMD/Intel 都是 True 就没问题
+(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled    # BIOS 是否把虚拟化交给系统，False 就是病根
+(Get-CimInstance Win32_ComputerSystem).HypervisorPresent           # 有没有 Hypervisor 在跑，正常启用后为 True
+```
+
+判读：
+
+| 现象 | 结论 |
+| --- | --- |
+| `VMMonitorModeExtensions=True`、`VirtualizationFirmwareEnabled=False`、`HypervisorPresent=False` | **BIOS 里 SVM/VT-x 没开**，最常见 |
+| 三项都 True 但仍报错 | Windows 功能或 VBS 冲突，见下面第 2 步 |
+| `VMMonitorModeExtensions=False` | CPU/主板不支持，或虚拟化被厂商锁死 |
+
+修复顺序（顺序不能颠倒）：
+
+1. **进 BIOS 开 SVM**（AMD）/ VT-x（Intel）。ASUS AMI BIOS 一般在 `Advanced` → `CPU Configuration` → `SVM Mode` → `Enabled`；找不到就在 `Advanced` → `AMD CBS` → `CPU Common Options` → `SVM`。顺手把 `IOMMU`、`Above 4G Decoding` 也打开。
+2. **重启回系统后**验证 `VirtualizationFirmwareEnabled` 已变 `True`，再执行 `wsl --install --no-distribution`（一条命令启用全部所需组件），然后**再重启一次**。
+3. 最后 `wsl --set-default-version 2` 并 `wsl --install -d Ubuntu-26.04`。
+
+第 1 步做完仍失败的排查项，按命中率排序：
+
+- **内存完整性**（Windows 安全中心 → 设备安全性 → 内核隔离）开着会和 SVM 抢 VBS 权限，关掉重启。
+- VMware / VirtualBox / 安卓模拟器 / 国产安全驱动占用了虚拟化层，先卸载。
+- WSL 版本太旧：`wsl --update`。Insider 通道的 Windows 和 WSL 版本组合更容易出这个问题。
+- 注意别把 BIOS 里的 SVM 和杀毒软件那个 SVM 搞混。
+
+真实案例：AMD Ryzen 7 5700X3D + ASUS AMI BIOS，Windows 11 26300，WSL 3.0.3.0 已装、默认版本已是 2，装 Ubuntu-26.04 报此错。诊断为 `VMMonitorModeExtensions=True` / `VirtualizationFirmwareEnabled=False` / `HypervisorPresent=False`，即 BIOS 未开 SVM，与 Windows 功能无关。
 
 **2. 提示 `WSL 2 requires an update to its kernel component`**
 执行 `wsl --update`，然后重启 WSL：`wsl --shutdown`。
