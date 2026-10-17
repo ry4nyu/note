@@ -12,7 +12,7 @@ WSL（Windows Subsystem for Linux）让你在 Windows 上直接运行 Linux 环�
 
 ## 2. 一键安装（推荐）
 
-建议先关闭网络代理（梯子），网络不稳定，很容易安装失败.
+不能直接访问微软分发服务器时**必须开代理**，关掉反而装不上。要求代理能覆盖 WinHTTP/WinINet（推荐开代理软件的 TUN 模式），否则会卡在“正在下载”或报 `WININET_E_INVALID_SERVER_RESPONSE`，详见 8.2 节。
 以**管理员身份**打开 PowerShell 或 Windows 终端，执行：
 
 ```powershell
@@ -134,8 +134,10 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 | 现象 | 结论 |
 | --- | --- |
 | `VMMonitorModeExtensions=True`、`VirtualizationFirmwareEnabled=False`、`HypervisorPresent=False` | **BIOS 里 SVM/VT-x 没开**，最常见 |
+| `VirtualizationFirmwareEnabled=True`、`HypervisorPresent=True` | **已经好了**，不必再管虚拟化 |
 | 三项都 True 但仍报错 | Windows 功能或 VBS 冲突，见下面第 2 步 |
-| `VMMonitorModeExtensions=False` | CPU/主板不支持，或虚拟化被厂商锁死 |
+| `VMMonitorModeExtensions=False` 且 `VirtualizationFirmwareEnabled=True`、`HypervisorPresent=True` | **正常**：hypervisor 已接管，root partition 看不到原始 CPU 虚拟化扩展。这是启用成功的标志，不是失败 |
+| `VMMonitorModeExtensions=False` 且其余两项也 False | CPU/主板不支持，或虚拟化被厂商锁死 |
 
 修复顺序（顺序不能颠倒）：
 
@@ -152,14 +154,64 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 真实案例：AMD Ryzen 7 5700X3D + ASUS AMI BIOS，Windows 11 26300，WSL 3.0.3.0 已装、默认版本已是 2，装 Ubuntu-26.04 报此错。诊断为 `VMMonitorModeExtensions=True` / `VirtualizationFirmwareEnabled=False` / `HypervisorPresent=False`，即 BIOS 未开 SVM，与 Windows 功能无关。
 
+**1.2 错误码 `WININET_E_INVALID_SERVER_RESPONSE` / 卡在“正在下载”不动**
+
+虚拟化已就绪（`VirtualizationFirmwareEnabled=True`、`HypervisorPresent=True`）但发行版装不上，`wsl -l -v` 报“没有已安装的分发”——问题在**下载通道被墙**，不是虚拟化。
+
+典型特征与验证（三条都命中就确定是网络）：
+
+```powershell
+# 1. 短链被劫持或失效，应跳到微软/WSL 页面，跳到 bing.com 就是失败
+curl.exe -I -L "https://aka.ms/wslubuntu2604" | Select-String -Pattern 'Location'
+# 2. 微软分发 CDN 的 DNS 解析为空（污染）
+Resolve-DnsName delivery.mp.microsoft.com
+# 3. WinHTTP 无代理，但系统代理开着（WSL 下载器走 WinINet/WinHTTP，不走浏览器代理）
+netsh winhttp show proxy
+```
+
+WSL 下载器与浏览器/`Invoke-WebRequest` 走的是不同的网络栈，所以会出现“浏览器能上网，`wsl --install` 就是下载不了”的现象。
+
+修复，按成功率排序：
+
+1. **代理软件开 TUN 模式**（需管理员）：接管全部流量并接管 DNS 解析，污染域名也能解出来。然后 `wsl --install -d Ubuntu-26.04 --no-launch`。一次成功率最高。
+2. **给 WinHTTP 也配上代理**（管理员），用完还原：
+
+   ```powershell
+   netsh winhttp set proxy 127.0.0.1:10808
+   wsl --install -d Ubuntu-26.04 --no-launch
+   netsh winhttp reset proxy
+   ```
+
+   端口要填代理软件的 **HTTP 入站**端口。v2rayN 默认 10808=SOCKS、10809=HTTP，填错协议同样会报 `WININET_E_INVALID_SERVER_RESPONSE`。
+
+3. **兜底：手动下载镜像再导入**，完全不依赖微软通道：
+
+   ```powershell
+   # 浏览器走代理下载 https://cdimages.ubuntu.com/ubuntu-wsl/<代号>/ 下的 rootfs.tar.gz
+   # 26.04 = resolute，24.04 = noble
+   wsl --import Ubuntu-26.04 D:\WSL\Ubuntu-26.04 <下载的rootfs.tar.gz> --version 2
+   wsl -d Ubuntu-26.04
+   ```
+
+   注意 `--import` 装出来的发行版不出现在 `wsl --install` 的列表里，首次启动直接是 root（需自己 `adduser`）。
+
+诊断代理时先分清端口协议：
+
+```powershell
+Get-NetTCPConnection -State Listen -LocalPort 10808,10809 | ForEach-Object {
+  "port $($_.LocalPort) <- $((Get-Process -Id $_.OwningProcess).Name)" }
+```
+
+真实案例：同一台机器开 SVM 后 `VirtualizationFirmwareEnabled` 已是 True、`HypervisorPresent` 已是 True，但 `VMMonitorModeExtensions`/`SLAT` 变成 False（正常现象）。`wsl --list --online` 正常出列表证明网络层能到 WSL 服务，但 `wsl --install -d Ubuntu-26.04` 卡 10 分钟无进展，加 `--web-download` 后报 `Wsl/InstallDistro/WININET_E_INVALID_SERVER_RESPONSE`；同时 `aka.ms/wslubuntu2604` 跳到 bing.com、`delivery.mp.microsoft.com` DNS 解析为空、`netsh winhttp show proxy` 显示 Direct。根因是代理未覆盖 WinINet/WinHTTP，与虚拟化无关。
+
 **2. 提示 `WSL 2 requires an update to its kernel component`**
 执行 `wsl --update`，然后重启 WSL：`wsl --shutdown`。
 
 **3. `wsl --install` 没有反应或报错 `无效的命令行选项`**
 Windows 版本过低，参考第 7 节手动安装，或先更新 Windows。
 
-**4. 安装时卡在 0%**
-检查网络，或稍等几分钟；可以关闭后重新执行 `wsl --install`。
+**4. 安装时卡在 0% 或长时间无进展**
+不是“稍等就好”。先看是否卡在下载：`wsl -l -v` 若无发行版，多半是代理未覆盖 WinHTTP/WinINet，按 8 节 1.2 排查。
 
 **5. 想换安装位置**
 WSL 的数据默认在 `%LOCALAPPDATA%\Packages\` 下。可用 `wsl --export <名称> <tar路径>` 导出，再用 `wsl --import <名称> <安装目录> <tar路径>` 导入到其他盘。
