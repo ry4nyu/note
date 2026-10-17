@@ -9,7 +9,9 @@ agent/
 ├─ README.md          本文件：跨工具的 Skill / MCP / CLI 推荐清单
 ├─ claude/            Claude Code 文档：README.md（上手指南）、hook / rule / skill / mcp / command / subagent 使用指南.md
 ├─ codex/             Codex CLI 文档：README.md 及 hook / mcp / plugin / skill / subagent 五篇
-└─ pi/                Pi 文档：README.md、Extension使用指南.md、skill使用指导.md
+└─ pi/                Pi 文档：README.md、配置-运行环境.md、配置-模型接入.md、
+                      配置-权限与规则.md、wsl.md、Extension使用指南.md、
+                      skill使用指导.md
 ```
 
 前置阅读：还没装 Claude Code，看 [`claude/README.md`](./claude/README.md)；用 Codex CLI 看 [`codex/README.md`](./codex/README.md)；用 Pi 看 [`pi/README.md`](./pi/README.md)。
