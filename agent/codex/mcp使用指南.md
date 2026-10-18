@@ -2,7 +2,7 @@
 
 本文面向使用 Codex CLI 的团队成员，环境为 **Linux / WSL**（Windows 原生环境的差异见 [`../windows.md`](../windows.md)）。命令和配置会随版本更新，遇到不一致时先执行 `codex mcp --help`。
 
-Claude Code 的对应文档见 [`../claude/mcp使用指南.md`](../claude/mcp使用指南.md)。
+Claude Code 的对应文档见 [`../claude/MCP.md`](../claude/MCP.md)。
 
 ## 1. MCP 是什么
 

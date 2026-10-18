@@ -20,14 +20,14 @@ agent/
 │   ├─ archify.md           可交互架构图（Skill）
 │   ├─ diagram-design.md    有设计感的架构图 / 流程图（Skill）
 │   └─ herdr.md             多 agent 终端运行时
-├─ claude/            Claude Code 文档：README.md（上手指南）、rule / skill / mcp / hook / command / subagent 使用指南.md
+├─ claude/            Claude Code 文档：README.md（索引）、安装与配置、日常使用、规则与记忆、Skill 与命令、MCP、Hook、Subagent
 ├─ codex/             Codex CLI 文档：README.md 及 hook / mcp / plugin / skill / subagent 五篇
 └─ pi/                Pi 文档：README.md、配置-运行环境.md、配置-模型接入.md、
                       配置-权限与规则.md、Extension使用指南.md、skill使用指导.md
 ```
 
 **阅读前提**：三份文档都按 **Linux / WSL** 写，命令是 bash、路径是 `~`。还没装 WSL 先看 [`wsl.md`](./wsl.md)；必须在 Windows 原生环境跑的情况（.NET / MSBuild / COM / Windows 服务）看 [`windows.md`](./windows.md)。
-装哪个工具：Claude Code 看 [`claude/README.md`](./claude/README.md)；Codex CLI 看 [`codex/README.md`](./codex/README.md)；Pi 看 [`pi/README.md`](./pi/README.md)。
+装哪个工具：Claude Code 看 [`claude/README.md`](./claude/README.md)（索引，安装看 `安装与配置.md`、日常用看 `日常使用.md`）；Codex CLI 看 [`codex/README.md`](./codex/README.md)；Pi 看 [`pi/README.md`](./pi/README.md)。
 
 **说明几点：**
 
@@ -93,6 +93,6 @@ agent/
 
 1. **合规先行**：这些是第三方开源项目，多数由个人或小团队维护。装之前确认公司对代码外发、第三方工具接入的规定。
 2. **配置类工具会改你的 agent 配置**：codegraph、OfficeCLI 的安装脚本都会自动检测并写入 agent 配置（`settings.json`、`.mcp.json`、`CLAUDE.md`、hooks 等）。装之前看一眼脚本内容，装完 `git diff` 一下项目里的配置文件。
-3. **不要把网关 token 贴进命令行**：涉及 `ANTHROPIC_AUTH_TOKEN` 之类的操作，统一走配置文件（见 [`claude/README.md`](./claude/README.md) 第 5.1 节），别在 shell 历史里留痕。
+3. **不要把网关 token 贴进命令行**：涉及 `ANTHROPIC_AUTH_TOKEN` 之类的操作，统一走配置文件（见 [`claude/安装与配置.md`](./claude/安装与配置.md) 第 4 节），别在 shell 历史里留痕。
 4. **代码和工具都装在 Linux 侧**：`npm install -g`、`~/.claude`、`~/.pi/agent` 都在 WSL 里，别在 `/mnt/c` 上折腾；跨文件系统的读写和文件监听问题不值得。
 5. **版本行为会变**：这类项目迭代极快，命令和默认行为随时可能调整。本文命令基于我查看 README 时的版本（2026-09），遇到不一致先看官方 README。
