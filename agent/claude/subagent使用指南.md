@@ -1,6 +1,6 @@
 # Claude Code Subagent 使用指南
 
-本文面向本仓库团队成员，说明如何在 Claude Code 里选择、定义和排查**子代理（Subagent）**。文中的字段、内置 agent 和命令基于本机 Claude Code **2.1.268**（Windows + PowerShell 环境）实测，跟随版本变化；遇到不一致先跑 `claude --help` 和 `/help`。
+本文面向本仓库团队成员，说明如何在 Claude Code 里选择、定义和排查**子代理（Subagent）**。文中的字段、内置 agent 和命令基于本机 Claude Code **2.1.268**（Linux / WSL 环境）实测，跟随版本变化；遇到不一致先跑 `claude --help` 和 `/help`。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式）；Skill 与 Subagent 的分工见 [`skill使用指南.md`](./skill使用指南.md) 第 2 节；子代理自己的 `hooks` 字段写法见 [`Hook使用指南.md`](./Hook使用指南.md)。Codex 的对应文档见 [`../codex/subagent使用指南.md`](../codex/subagent使用指南.md)。
 

@@ -1,6 +1,6 @@
 # Claude Code Hook 使用指南
 
-本文面向本仓库团队成员，说明如何在 Claude Code 里配置、使用和排查 Hook。文中机制基于 Claude Code 2.1.x（Windows + PowerShell 环境），跟随版本变化，遇到不一致先敲 `/hooks` 看实际注册了什么，再对官方 Hooks 参考。
+本文面向本仓库团队成员，说明如何在 Claude Code 里配置、使用和排查 Hook。文中机制基于 Claude Code 2.1.x（Linux / WSL 环境），跟随版本变化，遇到不一致先敲 `/hooks` 看实际注册了什么，再对官方 Hooks 参考。Windows 原生的 Hook 差异（`shell: "powershell"`、`.ps1` 编码、`.cmd` shim）见 [`../windows.md`](../windows.md) 第 3 节。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式）；Hook 在 Claude Code 整体能力里的位置、以及「什么时候该用 Hook 而不是 Skill」见 [`skill使用指南.md`](./skill使用指南.md) 第 2 节。Codex 的对应文档见 [`../codex/hook使用指南.md`](../codex/hook使用指南.md)，两边事件名和配置格式相近，但字段细节不同，别混用。
 
@@ -9,7 +9,7 @@
 > 但要说清楚两件事：
 >
 > - **机制描述（事件触发时机、决策字段、信任规则等）来自官方文档，没有在本机跑 Claude Code 复现过**，按参考值看待。版本迭代快，遇到不一致以 `/hooks` 和官方文档为准。
-> - **第 9 节的示例脚本是本机实测的**：脚本按 UTF-8 with BOM 存盘后，在 Windows PowerShell 5.1 和 PowerShell 7 上分别跑过，喂样例 JSON 验证了退出码和输出 —— 拦 `.env` / `package-lock.json` 是 `exit 2`、普通文件是 `exit 0`，`Stop` 示例的 `stop_hook_active` 守卫和 JSON 输出都符合预期。第 10 节第 6 条的编码问题也是实测出来的。
+> - **第 9 节的示例脚本都在本机实测过**：喂样例 JSON 验证了退出码和输出 —— 拦 `.env` / `package-lock.json` 是 `exit 2`、普通文件是 `exit 0`，`Stop` 示例的 `stop_hook_active` 守卫和 JSON 输出都符合预期。
 
 ---
 
@@ -82,8 +82,7 @@ Hook 写在 JSON 配置文件里。位置决定作用范围：
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\session-context.ps1\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-context.sh\"",
             "statusMessage": "读取项目状态",
             "timeout": 10
           }
@@ -94,47 +93,34 @@ Hook 写在 JSON 配置文件里。位置决定作用范围：
 }
 ```
 
-注意 `"shell": "powershell"` —— Hook 默认走 `sh -c`（Windows 上是 Git Bash），这里显式改成 PowerShell，省得在两种语法之间来回切。`$env:CLAUDE_PROJECT_DIR` 见第 10 节，**这里不要写裸的 `$CLAUDE_PROJECT_DIR`**。
+命令里用 `bash "$CLAUDE_PROJECT_DIR/..."`：hook 默认走 `sh -c`，`$CLAUDE_PROJECT_DIR` 会被替换成项目根；显式带上 `bash` 就不用管脚本有没有 `chmod +x`。不写 `shell` 就是默认的 `sh -c`，Linux / WSL 下不需要动它。
 
 ### 3.2 写脚本
 
-建 `.claude/hooks/session-context.ps1`：
-
-```powershell
-$branch = git rev-parse --abbrev-ref HEAD 2>$null
-
-if (-not $branch) {
-  Write-Output "当前目录不是 Git 仓库：$PWD"
-} else {
-  Write-Output "当前分支：$branch"
-  $dirty = git status --porcelain 2>$null | Select-Object -First 10
-  if ($dirty) {
-    Write-Output "工作区有未提交改动，改动会混进本次会话："
-    Write-Output $dirty
-  } else {
-    Write-Output "工作区干净。"
-  }
-}
-```
-
-`SessionStart` 是少数几个「stdout 直接进上下文」的事件之一，所以纯文本 `Write-Output` 就够了，不用拼 JSON。
-
-等价的 bash 版本（配置里去掉 `"shell": "powershell"`，脚本换成）：
+建 `.claude/hooks/session-context.sh`：
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 if [ -z "$branch" ]; then
   echo "当前目录不是 Git 仓库：$PWD"
 else
   echo "当前分支：$branch"
-  git status --porcelain | head -10
+  dirty=$(git status --porcelain | head -10)
+  if [ -n "$dirty" ]; then
+    echo "工作区有未提交改动，改动会混进本次会话："
+    echo "$dirty"
+  else
+    echo "工作区干净。"
+  fi
 fi
 ```
 
+`SessionStart` 是少数几个「stdout 直接进上下文」的事件之一，所以纯文本 `echo` 就够了，不用拼 JSON。
+
 > 加那句「不是 Git 仓库」的判断不是为了好看：`git` 失败时 `$branch` 是空字符串，不加判断就会输出「工作区干净」—— **hook 输出谎报状态，比不输出更糟**。写 hook 时对失败路径要显式处理，别让它静默变成一句好消息。
 
-> ⚠️ **`.ps1` 脚本里有中文，就存成 UTF-8 with BOM**（VS Code 右下角编码 → `Save with Encoding` → `UTF-8 with BOM`）。否则在 Windows PowerShell 5.1 下中文会乱码、甚至整个脚本解析失败 —— 本地实测过，见第 10 节第 6 条。这是本文所有 PowerShell 例子的前提。
+> 脚本存 UTF-8（无 BOM 也行）。`.ps1` 才有 BOM 那套讲究，见 [`../windows.md`](../windows.md) 第 3 节。
 
 ### 3.3 验证
 
@@ -176,13 +162,13 @@ fi
 | `args` | 参数数组。写了就切到 exec form，不走 shell —— 引号、`$`、反引号都是字面量 |
 | `timeout` | 超时秒数，见 4.4 |
 | `statusMessage` | hook 跑的时候转圈上显示的话 |
-| `shell` | `"bash"` 或 `"powershell"`。默认 bash（Windows 上没装 Git Bash 时默认 PowerShell） |
+| `shell` | `"bash"` 或 `"powershell"`。默认走 `sh -c`；Linux / WSL 下不用设 |
 | `async` | `true` 则丢后台跑，不阻塞 Claude。**只有 `command` 支持** |
 | `asyncRewake` | 后台跑，且退出码为 2 时把 Claude 叫醒 |
 | `if` | 权限规则语法的额外过滤，见 4.3 |
 | `once` | 跑成功一次后移除。**只在 Skill frontmatter 里有效**，设置文件里写了会被忽略 |
 
-> **exec form 和 shell form 的区别不是小事**。exec form 里每个 `args` 元素原样作为一个参数，不做 shell 展开，引号也是字面量。Windows 上 exec form 要求 `command` 是个真可执行文件（`.exe`）——`npx`、`eslint` 这类装在 `node_modules/.bin` 的 `.cmd`/`.bat` shim **不能**被直接 spawn，要么用 shell form，要么写成 `{"command": "node", "args": ["...\\node_modules\\eslint\\bin\\eslint.js"]}`。
+> **exec form 和 shell form 的区别不是小事**。exec form 里每个 `args` 元素原样作为一个参数，不做 shell 展开，引号、`$`、反引号都是字面量 —— 想要变量展开就得自己拼到 `command` 里，或者干脆用 shell form。Linux 下的另一个坑：`command` 得是真可执行文件，`.py` / `.sh` 脚本要么显式写解释器（`python3`、`bash`），要么加上可执行位并写 shebang。
 
 ### 4.2 matcher 怎么写
 
@@ -274,8 +260,8 @@ mcp__brave-search__.*     ✓ server 名里有连字符也这么写
 ```json
 {
   "session_id": "abc123",
-  "transcript_path": "C:\\Users\\你的名字\\.claude\\projects\\...\\transcript.jsonl",
-  "cwd": "C:\\Users\\你的名字\\IdeaProjects\\your-project",
+  "transcript_path": "/home/you/.claude/projects/.../transcript.jsonl",
+  "cwd": "/home/you/code/your-project",
   "permission_mode": "default",
   "hook_event_name": "PreToolUse",
   "tool_name": "Bash",
@@ -289,7 +275,7 @@ mcp__brave-search__.*     ✓ server 名里有连字符也这么写
 | 占位符 / 变量 | 含义 |
 |---|---|
 | `${CLAUDE_PROJECT_DIR}` | **会话启动时**的项目根。exec form 里会替换进 `command` 和每个 `args` 元素；shell form 里要用双引号包起来 |
-| `$env:CLAUDE_PROJECT_DIR`（PowerShell） / `$CLAUDE_PROJECT_DIR`（bash） | 同名环境变量，脚本里直接读也行 |
+| `$CLAUDE_PROJECT_DIR` | 同名环境变量，脚本里直接读也行（Windows 上要写 `$env:CLAUDE_PROJECT_DIR`，见 [`../windows.md`](../windows.md)） |
 | `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` | 插件安装目录 / 插件的持久数据目录 |
 | `$CLAUDE_ENV_FILE` | 一个文件路径，**只对 `SessionStart`、`Setup`、`CwdChanged`、`FileChanged` 可用**。往里面追加 `export` 语句，后续的 Bash 命令就能看到这些环境变量 |
 | `$CLAUDE_EFFORT` | 当前思考强度 |
@@ -429,10 +415,10 @@ Hook 跑在没有控制终端的会话里，`/dev/tty` 写不了，想发桌面�
 
 另外，`SessionStart` 能拿到 `$CLAUDE_ENV_FILE`，往里追加 `export` 就能给后续的 Bash 命令持久化环境变量：
 
-```powershell
-if ($env:CLAUDE_ENV_FILE) {
-  Add-Content $env:CLAUDE_ENV_FILE 'export NODE_ENV=production'
-}
+```bash
+if [ -n "$CLAUDE_ENV_FILE" ]; then
+  echo 'export NODE_ENV=production' >> "$CLAUDE_ENV_FILE"
+fi
 ```
 
 > 恢复会话（`--continue` / `--resume`）时它**会再跑一次**，`source` 是 `resume` —— 所以它可以用来刷新会过期的上下文。但中途事件（`PostToolUse`、`UserPromptSubmit`）注入的文本在被恢复时是**重放存档**，不会重跑 hook，时间戳、commit SHA 这类值会变旧。
@@ -559,8 +545,7 @@ Claude Code 要发通知时触发，matcher 是通知类型，常用的两个：
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\protect-files.ps1\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh\""
           }
         ]
       }
@@ -569,29 +554,13 @@ Claude Code 要发通知时触发，matcher 是通知类型，常用的两个：
 }
 ```
 
-`.claude/hooks/protect-files.ps1`：
-
-```powershell
-$callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
-$path = $callInput.tool_input.file_path -replace '\\', '/'   # Windows 上是反斜杠，先归一化
-
-$blocked = @('(^|/)\.env', '/package-lock\.json$', '/\.git/')
-foreach ($pattern in $blocked) {
-  if ($path -match $pattern) {
-    [Console]::Error.WriteLine("已阻止：$path 命中受保护规则 $pattern")
-    exit 2
-  }
-}
-exit 0   # 没有异议，走正常权限流程
-```
-
-bash 版本：
+`.claude/hooks/protect-files.sh`：
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
+command -v jq >/dev/null || { echo "缺 jq" >&2; exit 1; }
 INPUT=$(cat)
 FILE_PATH=$(jq -r '.tool_input.file_path // empty')
-FILE_PATH="${FILE_PATH//\\//}"
 
 for pattern in '(^|/)\.env' '/package-lock\.json$' '/\.git/'; do
   if [[ "$FILE_PATH" =~ $pattern ]]; then
@@ -617,8 +586,7 @@ exit 0
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\format-edited.ps1\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-edited.sh\"",
             "timeout": 60
           }
         ]
@@ -628,22 +596,21 @@ exit 0
 }
 ```
 
-`.claude/hooks/format-edited.ps1`：
+`.claude/hooks/format-edited.sh`：
 
-```powershell
-$callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
-$path = $callInput.tool_input.file_path
-
-switch -Regex ($path) {
-  '\.java$'                  { mvn -q spotless:apply "-DspotlessFiles=$path" }
-  '\.(ts|tsx|js|json|md)$'   { npx prettier --write $path }
-}
+```bash
+#!/usr/bin/env bash
+FILE_PATH=$(jq -r '.tool_input.file_path // empty')
+case "$FILE_PATH" in
+  *.java)                      mvn -q spotless:apply "-DspotlessFiles=$FILE_PATH" ;;
+  *.ts|*.tsx|*.js|*.json|*.md) npx prettier --write "$FILE_PATH" ;;
+esac
 exit 0   # 格式化失败不阻断；要看结果就写日志或改成 exit 2
 ```
 
 **成功时对话里什么都不显示** —— 这是设计如此，不是没跑。要确认就看文件是不是被改了，或者开 debug 日志。
 
-> `npx` 在 Windows 上是 `.cmd` shim，只能走 shell form（这里没写 `args`，就是 shell form）。要改用 exec form 得写成 `{"command": "node", "args": ["...\\node_modules\\prettier\\bin\\prettier.cjs", "--write", "<路径>"]}`。
+> 脚本里调 `npx` 就别用 exec form —— exec form 要求 `command` 是可执行文件。要 exec form 就写成 `{"command": "node", "args": ["/path/to/node_modules/prettier/bin/prettier.cjs", "--write", "<路径>"]}`。
 
 ### 9.3 压缩后把关键约定塞回去
 
@@ -658,8 +625,7 @@ exit 0   # 格式化失败不阻断；要看结果就写日志或改成 exit 2
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "Write-Output '提醒：包管理用 bun 不用 npm；提交前跑 bun test；当前迭代是鉴权重构。'"
+            "command": "echo '提醒：包管理用 bun 不用 npm；提交前跑 bun test；当前迭代是鉴权重构。'"
           }
         ]
       }
@@ -668,7 +634,7 @@ exit 0   # 格式化失败不阻断；要看结果就写日志或改成 exit 2
 }
 ```
 
-`SessionStart` 的纯 stdout 会进上下文，所以一句话的注入直接 `Write-Output` 就行，不用拼 JSON。想换成动态内容就把 `echo` 换成 `git log --oneline -5` 这类命令。
+`SessionStart` 的纯 stdout 会进上下文，所以一句话的注入直接 `echo` 就行，不用拼 JSON。想换成动态内容就把文案换成 `git log --oneline -5` 这类命令的输出。
 
 > 恒真不变的约定应该写进 `CLAUDE.md`（不跑脚本、加载更快）；这个位置适合放**会变**的东西。
 
@@ -683,8 +649,7 @@ exit 0   # 格式化失败不阻断；要看结果就写日志或改成 exit 2
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\notify.ps1\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh\""
           }
         ]
       }
@@ -693,18 +658,16 @@ exit 0   # 格式化失败不阻断；要看结果就写日志或改成 exit 2
 }
 ```
 
-`.claude/hooks/notify.ps1`：
+`.claude/hooks/notify.sh`：
 
-```powershell
-$callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
-$msg = if ($callInput.message) { $callInput.message } else { '需要你的确认' }
-
-# OSC 9：Windows Terminal / ConEmu / WezTerm 支持；BEL 结尾
-$seq = "$([char]27)]9;$msg$([char]7)"
-@{ terminalSequence = $seq } | ConvertTo-Json -Compress
+```bash
+#!/usr/bin/env bash
+MSG=$(jq -r '.message // "需要你的确认"')
+# OSC 9 通知序列，大多数现代终端认；没有桌面通知能力时换 notify-send
+printf '{"terminalSequence":"\\u001b]9;%s\\u0007"}\n' "$MSG"
 ```
 
-**验证**：让 Claude 做一件需要批准的事，然后切走窗口，约 6 秒后应该收到通知。如果没出现，先在 Windows Terminal 里手动 `printf '\033]9;test\007'` 试一下你的终端认不认这个序列。
+**验证**：让 Claude 做一件需要批准的事，然后切走窗口，约 6 秒后应该收到通知。如果没出现，先在终端里手动跑 `printf '\033]9;test\007'` 试一下你的终端认不认这个序列；不认就改用桌面环境的 `notify-send`。
 
 ### 9.5 收尾前要求先跑测试
 
@@ -716,8 +679,7 @@ $seq = "$([char]27)]9;$msg$([char]7)"
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\stop-check.ps1\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-check.sh\""
           }
         ]
       }
@@ -726,23 +688,19 @@ $seq = "$([char]27)]9;$msg$([char]7)"
 }
 ```
 
-`.claude/hooks/stop-check.ps1`：
+`.claude/hooks/stop-check.sh`：
 
-```powershell
-$callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
+```bash
+#!/usr/bin/env bash
+INPUT=$(cat)
 
 # 已经在因为 stop hook 而继续了：直接放行，否则会来回死循环
-if ($callInput.stop_hook_active) { exit 0 }
+[ "$(jq -r '.stop_hook_active // false' <<<"$INPUT")" = "true" ] && exit 0
 
-$msg = $callInput.last_assistant_message
-if ($msg -notmatch '测试|test|单测') {
-  @{
-    hookSpecificOutput = @{
-      hookEventName     = 'Stop'
-      additionalContext = '还没看到测试结果。先跑一遍相关单测，再把结论写出来。'
-    }
-  } | ConvertTo-Json -Compress
-}
+MSG=$(jq -r '.last_assistant_message // ""' <<<"$INPUT")
+if ! grep -qiE '测试|test|单测' <<<"$MSG"; then
+  jq -cn '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:"还没看到测试结果。先跑一遍相关单测，再把结论写出来。"}}'
+fi
 exit 0
 ```
 
@@ -764,8 +722,7 @@ exit 0
         "hooks": [
           {
             "type": "command",
-            "shell": "powershell",
-            "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\run-tests-async.ps1\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/run-tests-async.sh\"",
             "async": true
           }
         ]
@@ -775,21 +732,19 @@ exit 0
 }
 ```
 
-`.claude/hooks/run-tests-async.ps1`：
+`.claude/hooks/run-tests-async.sh`：
 
-```powershell
-$callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
-$path = $callInput.tool_input.file_path
-if ($path -notmatch '\.java$') { exit 0 }
+```bash
+#!/usr/bin/env bash
+FILE_PATH=$(jq -r '.tool_input.file_path // empty')
+case "$FILE_PATH" in *.java) ;; *) exit 0 ;; esac
 
-$output = & mvn -q test 2>&1 | Out-String
-$msg = if ($LASTEXITCODE -eq 0) {
-  "$path 改动后单测通过。"
-} else {
-  "$path 改动后单测失败：$($output.Substring(0, [Math]::Min(2000, $output.Length)))"
-}
-
-@{ hookSpecificOutput = @{ hookEventName = 'PostToolUse'; additionalContext = $msg } } | ConvertTo-Json -Compress
+if OUTPUT=$(mvn -q test 2>&1); then
+  MSG="$FILE_PATH 改动后单测通过。"
+else
+  MSG="$FILE_PATH 改动后单测失败：${OUTPUT:0:2000}"
+fi
+jq -cn --arg m "$MSG" '{hookSpecificOutput:{hookEventName:"PostToolUse",additionalContext:$m}}'
 ```
 
 几条限制：
@@ -802,78 +757,29 @@ $msg = if ($LASTEXITCODE -eq 0) {
 
 ---
 
-## 10. Windows / PowerShell 注意
+## 10. 平台相关的注意点
 
-**1）`shell` 是逐个 hook 设的**
+**1）`shell` 是逐个 handler 设的，默认 `sh -c`**
 
-```json
-{
-  "type": "command",
-  "shell": "powershell",
-  "command": "Write-Host '文件已写入'"
-}
-```
+Linux / WSL 下基本不用管：不写 `shell` 就走 `sh -c`。脚本可执行就直接跑；不想管 `chmod +x` 就写成 `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/check.sh"`。带 `args`（exec form）时 `shell` 会被忽略。
 
-不写 `shell` 就走 `sh -c`（Windows 上是 Git Bash；没装 Git Bash 才用 PowerShell）。设成 `"powershell"` 不需要开 `CLAUDE_CODE_USE_POWERSHELL_TOOL`，Claude Code 会直接拉起 PowerShell —— 优先 `pwsh.exe`（PowerShell 7+），没有才退回 `powershell.exe`（5.1）。**带了 `args`（exec form）时 `shell` 会被忽略。**
+**2）脚本路径用 `${CLAUDE_PROJECT_DIR}`，别用相对路径**
 
-**2）路径占位符的三种写法，只有一种不会出错**
+hook 的工作目录不保证是你敲 `claude` 时所在的位置，`./.claude/hooks/check.sh` 这种写法迟早出事。一律写 `${CLAUDE_PROJECT_DIR}/.claude/hooks/check.sh`。
 
-| 写法 | 结果 |
-|---|---|
-| `$env:CLAUDE_PROJECT_DIR` | ✅ 每个版本都对 |
-| `${CLAUDE_PROJECT_DIR}` | ✅ v2.1.198 起会被改写成 PowerShell 的 `${env:...}` 形式。**注意**：它在双引号里能展开，在单引号里不行（单引号在 PowerShell 里就是不展开变量） |
-| `$CLAUDE_PROJECT_DIR` | ❌ **会解析成 `$null`** —— PowerShell 把它当成未定义的局部变量，路径就缺了前缀。Claude Code 不做这个改写，只在 debug 日志里记一条警告 |
+**3）`file_path` 是绝对路径，按路径片段匹配**
 
-推荐的稳妥写法（shell form）：
+`tool_input.file_path` 总是绝对路径，写 `^src/` 永远匹配不上。用 `/src/` 这种中部片段，并注意 macOS 上 `/tmp` 与 `/private/tmp` 的软链差异。
 
-```json
-{
-  "type": "command",
-  "shell": "powershell",
-  "command": "& \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\check.ps1\""
-}
-```
+**4）脚本依赖显式检查**
 
-**3）文件路径是反斜杠的绝对路径**
+官方 bash 例子大量用 `jq`。开头加一句 `command -v jq >/dev/null || { echo "缺 jq" >&2; exit 1; }`，比让 hook 静默失败强 —— 缺依赖时非 0 退出，表现为 `PreToolUse hook error: ...`。
 
-`tool_input.file_path` 在 Windows 上**总是绝对路径、且用反斜杠**，即使 hook 跑在 Git Bash 下也一样。所以：
+**5）脚本权限与 shebang**
 
-- 拿 `/src/` 这种正斜杠片段去比较，**永远匹配不上**，hook 会静默放行；
-- 比较前先归一化：PowerShell 里 `-replace '\\', '/'`，bash 里 `FILE_PATH="${FILE_PATH//\\//}"`；
-- 归一化之后按**路径片段**匹配（`/src/`），别用 `^` 锚开头 —— 它是绝对路径。
+`chmod +x .claude/hooks/*.sh`，首行写 `#!/usr/bin/env bash`。注意经 `sh -c` 调用时 shebang 不生效，所以别靠它选解释器：要么显式 `bash 脚本`，要么写成 POSIX 兼容。
 
-**4）启动 PowerShell 脚本的常规姿势**
-
-```json
-{
-  "type": "command",
-  "command": "powershell.exe",
-  "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/check.ps1"]
-}
-```
-
-`-NoProfile` 让 hook 启动快一点（不加载你的 profile），`-ExecutionPolicy Bypass` 绕开执行策略限制。这是 **exec form**，`${CLAUDE_PROJECT_DIR}` 在 `args` 里是原样替换、不用加引号。想让公司执行策略生效就把 `-ExecutionPolicy Bypass` 去掉。
-
-**5）`.cmd` / `.bat` 别指望 exec form**
-
-`npx`、`eslint`、`tsc` 这些装在 `node_modules/.bin` 的是 `.cmd` shim，**不是可执行文件**，exec form 里 spawn 不起来。要么用 shell form，要么直接走 `node`：
-
-```json
-{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/node_modules/typescript/bin/tsc", "--noEmit"] }
-```
-
-**6）脚本里有中文就必须存成 UTF-8 with BOM（本地实测）**
-
-Claude Code 在 Windows 上优先用 `pwsh.exe`（PowerShell 7+），没有才退回 `powershell.exe`（5.1）。两者读 `.ps1` 的默认编码不一样：
-
-- **PowerShell 7**：默认按 UTF-8 读，无 BOM 也正常。
-- **Windows PowerShell 5.1**：无 BOM 时按系统 ANSI 码页读。脚本里的中文字符串会乱码，**严重的直接整个脚本解析失败**（本地实测：本文 7 段 PowerShell 示例存成无 BOM 的 UTF-8 后，5.1 下有 4 段报语法错误、另一段把中文写花了；同一批文件用 `pwsh` 7 跑全部正常）。
-
-所以只要脚本里有中文（本文的例子都有），**存成 UTF-8 with BOM**：VS Code 里右下角编码 → `Save with Encoding` → `UTF-8 with BOM`。这样 5.1 和 7 都能正确读。
-
-**7）依赖 `jq` 的例子**
-
-官方文档里的 bash 例子大量用 `jq`。Windows 上要么 `winget install jqlang.jq` 装上，要么就用 PowerShell 的 `ConvertFrom-Json` / `ConvertTo-Json`（本文的 PowerShell 例子都是后者，没有额外依赖）。
+> Windows 原生的那一套 —— `shell: "powershell"`、`$env:CLAUDE_PROJECT_DIR`、`.ps1` 必须存 UTF-8 with BOM、`.cmd` shim 不能用 exec form、`jq` 怎么装 —— 统一在 [`../windows.md`](../windows.md) 第 3 节。
 
 ---
 
@@ -899,7 +805,7 @@ Claude Code 在 Windows 上优先用 `pwsh.exe`（PowerShell 7+），没有才�
 
 ```text
 /hooks                                    看实际注册了哪些 hook、来自哪个文件、命令是什么（只读）
-claude --debug-file C:\temp\claude.log    把日志写到固定路径，另开一个窗口 tail
+claude --debug-file /tmp/claude.log       把日志写到固定路径，另开一个窗口 tail -f
 /debug                                    会话中途开启日志并看日志路径
 ```
 
@@ -912,16 +818,15 @@ claude --debug-file C:\temp\claude.log    把日志写到固定路径，另开�
 | Hook 完全没触发 | `/hooks` 里有没有它、在不在**正确的事件**下；matcher 拼写（**大小写敏感**）；是不是搞错了事件（`PreToolUse` 在前、`PostToolUse` 在后）；非 tool 事件上写了 `if` 会导致**永不运行**（4.3 节） |
 | `/hooks` 里一个 hook 都没有 | JSON 是不是合法（**不允许尾逗号、不允许注释**）；文件位置对不对（`.claude/settings.json` 是项目级、`~/.claude/settings.json` 是用户级）；文件监听失灵就重启会话 |
 | 脚本改了没反应 | hook 配置文件改了通常会自动拾取；脚本文件本身改了不受影响（每次都是重新执行），但如果命令/路径变了要重启 |
-| 输出 `PreToolUse hook error: ...` | 脚本意外非 0 退出。手工喂一段样例 JSON 试：`echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' \| ./my-hook.ps1`，然后看退出码 |
+| 输出 `PreToolUse hook error: ...` | 脚本意外非 0 退出。手工喂一段样例 JSON 试：`echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' \| ./my-hook.sh; echo $?` |
 | 报 `command not found` / 路径不存在 | 用绝对路径或 `${CLAUDE_PROJECT_DIR}`；加 `"args": []` 切 exec form 可以完全避开 shell 引号问题 |
-| 报 `jq: command not found` | 装 jq，或者改用 PowerShell 的 `ConvertFrom-Json` |
+| 报 `jq: command not found` | 装 jq（`sudo apt install jq`），或者别用 jq，改用 `python3 -c` 解析 |
 | **JSON 写了但不生效，也没有任何报错** | ① stdout 前面被别的东西污染了（profile 里的 `echo`），不再以 `{` 开头；② 字段**层级写错了** —— 比如 `permissionDecision` 必须放在 `hookSpecificOutput` 里，放顶层会被静默忽略。用 `claude --debug` 搜日志里的 `Hook JSON output had unrecognized keys` |
-| 提示里带 JSON 校验/解析错误 | 说明 stdout 被当成 JSON 但没通过校验。别手拼字符串，用 `ConvertTo-Json` / `jq` 生成，让引号和反斜杠被正确转义（6.2 节） |
+| 提示里带 JSON 校验/解析错误 | 说明 stdout 被当成 JSON 但没通过校验。别手拼字符串，用 `jq -n` 生成，让引号和反斜杠被正确转义（6.2 节） |
 | Stop hook 反复不让停 | 没查 `stop_hook_active`（9.5 节）。连续 8 次后会被强制放行，要更多轮就设 `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` |
 | Hook 跑到一半没了 | 撞上超时被取消，输出被丢弃。看 4.4 的默认值，长任务改 `async` 或调 `timeout` |
-| Windows 上脚本里项目路径是空的 | 写了裸的 `$CLAUDE_PROJECT_DIR`，PowerShell 解析成 `$null`。改 `$env:CLAUDE_PROJECT_DIR`（第 10 节） |
-| PowerShell 脚本报语法错误 / 中文变乱码 | `.ps1` 没存成 UTF-8 with BOM，5.1 按 ANSI 码页读了（第 10 节第 6 条） |
-| 路径匹配怎么都不中 | `file_path` 是反斜杠的绝对路径，先归一化再比较（第 10 节） |
+| 路径匹配怎么都不中 | `file_path` 是绝对路径，写 `^src/` 匹配不上；用 `/src/` 这种中部片段（第 10 节） |
+| 脚本没执行权限 | `chmod +x`，或者在命令里显式写 `bash <脚本>` |
 | 点了 `deny` 还是跑了 | 有别的 hook 返回了更宽松的决策？不会 —— `deny` 优先级最高，反过来是 `allow` 盖不住 deny 规则。更可能是脚本退出码不是 2（**`1` 不阻断**） |
 | 陌生仓库里 `-p` 直接跑了它的 hook | 交互式会扣住、`-p` 不会。跑之前先看它的 `.claude/settings.json`，或 `--settings '{"disableAllHooks": true}'`（第 11 节） |
 
@@ -988,11 +893,9 @@ claude --debug-file C:\temp\claude.log    把日志写到固定路径，另开�
             Ctrl+O                     会话记录视图，看 hook 运行结果
             常见：JSON 不生效 → 先看 stdout 有没有被 profile 的 echo 污染、
                   字段层级对不对（permissionDecision 必须嵌在 hookSpecificOutput 里）
-                  路径匹配不中 → file_path 是反斜杠绝对路径，先归一化
-                  PowerShell 里路径为空 → 别写裸 $CLAUDE_PROJECT_DIR
+                  路径匹配不中 → file_path 是绝对路径，用 /src/ 这种片段
                   策略 hook 没拦住 → 退出码得是 2，1 不阻断
-                  .ps1 报语法错误/中文乱码 → 存成 UTF-8 with BOM
-                  （5.1 读无 BOM 文件按 ANSI 解，详见第 10 节第 6 条）
+                  脚本不执行 → 显式写 bash <脚本> 或 chmod +x
 ```
 
 官方文档：[Hooks 参考](https://docs.claude.com/en/docs/claude-code/hooks)、[Hooks 指南](https://docs.claude.com/en/docs/claude-code/hooks-guide)

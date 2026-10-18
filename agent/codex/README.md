@@ -1,6 +1,6 @@
 # Codex 上手指南
 
-本文基于 Codex CLI（Windows + PowerShell）编写，macOS / Linux 的差别会单独标注。命令和配置会随版本更新，遇到不一致时先执行 `codex --help`。
+本文基于 Codex CLI（**Linux / WSL 环境**）编写，macOS 基本一致。Windows 原生环境的差异（`install.ps1`、`$env:CODEX_API_KEY`、`[windows] sandbox`、Hook 的 `commandWindows`）见 [`../windows.md`](../windows.md)，本文不重复。命令和配置会随版本更新，遇到不一致时先执行 `codex --help`。
 
 ---
 
@@ -19,12 +19,12 @@ Codex 是一个**跑在终端里的编程助手**。它可以直接：
 
 ## 1. 快速开始（三步版）
 
-```powershell
-# 1) 安装 Codex CLI
-powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+```bash
+# 1) 安装 Codex CLI（二选一，见 2.2）
+npm install -g @openai/codex
 
 # 2) 进入项目目录
-cd C:\Users\你的名字\IdeaProjects\你的项目
+cd ~/code/你的项目
 
 # 3) 启动
 codex
@@ -46,40 +46,48 @@ codex
 
 | 依赖 | 说明 |
 |---|---|
-| Windows Terminal + PowerShell | 推荐，复制命令和多行输入更方便 |
-| Git for Windows | 强烈建议。项目最好在 Git 仓库中，`codex exec` 默认要求 Git 仓库 |
-| Node.js | 只有使用 npm 安装方式时需要 |
+| Node.js 20+ | 走 npm 安装时需要 |
+| Git | 强烈建议。项目最好在 Git 仓库中，`codex exec` 默认要求 Git 仓库 |
+| 终端 | 任意现代终端；tmux 里跑也可以 |
+
+> **WSL 用户**：先按 [`../wsl.md`](../wsl.md) 把 WSL 配好（镜像网络、代理、interop），再装 Codex —— 装在 **WSL 里**。
 
 ### 2.2 安装方式
 
-**方式 A：Windows 安装脚本（推荐）**
+**方式 A：npm（最省事，跨发行版一致）**
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+```bash
+npm install -g @openai/codex
 ```
 
-安装脚本也用于更新。
+**方式 B：官方安装脚本**
 
-**方式 B：npm**
+```bash
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
 
-```powershell
-npm install -g @openai/codex
+装完先 `codex --version` 看一眼，再决定要不要固定版本。安装脚本也用于更新。
+
+**方式 C：macOS / Homebrew**（只在 macOS 上）
+
+```bash
+brew install codex
 ```
 
 ### 2.3 验证安装
 
-```powershell
+```bash
 codex --version
 codex doctor
 ```
 
-如果提示 `codex` 不是可识别的命令，先关闭终端并重新打开，让 PATH 生效；仍然不行就检查安装目录是否已加入 PATH。
+如果提示 `codex: command not found`，重开终端刷新 `PATH`；仍然不行就检查 `npm config get prefix` 对应的 `bin` 目录是否在 `PATH` 里。
 
 ---
 
 ## 3. 登录和退出
 
-```powershell
+```bash
 codex login          # 打开浏览器登录
 codex login status   # 检查是否已有登录凭据
 codex logout         # 清除本机登录凭据
@@ -87,13 +95,13 @@ codex logout         # 清除本机登录凭据
 
 直接执行 `codex` 也会在第一次启动时引导登录。
 
-自动化任务可以使用 API Key，但不要把密钥提交到仓库，也不要让不可信的构建脚本和密钥处于同一个进程环境中。单次 PowerShell 会话可以这样传入：
+自动化任务可以使用 API Key，但不要把密钥提交到仓库，也不要让不可信的构建脚本和密钥处于同一个进程环境中。单次会话这样传入：
 
-```powershell
-$env:CODEX_API_KEY = '你的 API Key'
-codex exec "检查项目是否能通过测试"
-Remove-Item Env:CODEX_API_KEY
+```bash
+CODEX_API_KEY='你的 API Key' codex exec "检查项目是否能通过测试"
 ```
+
+用 `CODEX_API_KEY=... codex ...` 这种前置写法，密钥不会留在 shell 历史里（`export` 会）。
 
 ---
 
@@ -101,25 +109,25 @@ Remove-Item Env:CODEX_API_KEY
 
 ### 4.1 启动和提问
 
-```powershell
-cd C:\path\to\your\project
+```bash
+cd ~/code/your-project
 codex
 ```
 
 也可以带初始问题启动：
 
-```powershell
+```bash
 codex "找出登录逻辑，并告诉我用户输错密码时返回什么"
 ```
 
 常用命令：
 
-```powershell
+```bash
 codex resume --last                 # 继续当前目录最近一次会话
 codex resume                        # 从列表中选择历史会话
 codex review --uncommitted          # review 未提交的改动
 codex review --base main            # review 当前分支相对 main 的改动
-codex --image .\error.png "分析这张报错截图，并定位相关代码"
+codex --image ./error.png "分析这张报错截图，并定位相关代码"
 codex --search "查一下当前版本的官方迁移说明"
 ```
 
@@ -131,14 +139,14 @@ codex --search "查一下当前版本的官方迁移说明"
 |---|---|
 | 直接输入 + Enter | 提问或下指令 |
 | `@` | 搜索并引用工作区内的文件 |
-| `$` | 使用指定skill |
+| `$` | 使用指定 skill |
 | `Shift+Tab` | 切换计划模式 |
 | `!命令` | 在当前权限和沙箱规则下执行本地 shell 命令 |
 | `/` | 打开斜杠命令菜单 |
 | `Tab` | Codex 工作时，把下一条指令排队到下一轮 |
 | 工作时按 `Enter` | 把新指令注入当前回合 |
 | `Esc` 两次 | 编辑上一条消息并从那里分叉会话 |
-| `Ctrl+G` | 用系统编辑器输入较长的提示词 |
+| `Ctrl+G` | 用 `$EDITOR` 输入较长的提示词 |
 | `Ctrl+C` 或 `/exit` | 退出当前会话 |
 
 ### 4.3 常用斜杠命令
@@ -173,13 +181,13 @@ Codex 的安全控制分两层：
 
 默认情况下，本地命令网络访问关闭；工作区可写模式只允许修改当前工作区。日常开发推荐：
 
-```powershell
+```bash
 codex --sandbox workspace-write --ask-for-approval on-request
 ```
 
 只读分析或规划：
 
-```powershell
+```bash
 codex --sandbox read-only --ask-for-approval on-request
 ```
 
@@ -187,7 +195,7 @@ codex --sandbox read-only --ask-for-approval on-request
 
 不要把下面的设置当作日常默认值：
 
-```powershell
+```bash
 codex --sandbox danger-full-access --ask-for-approval never
 ```
 
@@ -198,7 +206,7 @@ codex --sandbox danger-full-access --ask-for-approval never
 用户级配置文件：
 
 ```text
-C:\Users\你的名字\.codex\config.toml
+~/.codex/config.toml
 ```
 
 如果设置了 `CODEX_HOME`，实际路径以该变量为准。一个适合日常开发的基础配置：
@@ -207,24 +215,23 @@ C:\Users\你的名字\.codex\config.toml
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 web_search = "cached"
-
-[windows]
-sandbox = "elevated"
 ```
 
 项目级配置可以放在仓库的 `.codex/config.toml`，但只对受信任的项目加载。命令行参数和 `-c key=value` 的临时覆盖优先级最高。
 
 想临时覆盖配置，不必修改文件：
 
-```powershell
+```bash
 codex -c model_reasoning_effort=high "分析这个并发问题"
 ```
+
+> Windows 原生环境要在配置里额外加 `[windows] sandbox = "elevated"`，见 [`../windows.md`](../windows.md) 第 4 节。
 
 ### 5.2 通过 LiteLLM 接入 GPT
 
 LiteLLM 先把上游 GPT 映射成一个模型名，Codex 再把这个模型名发给 LiteLLM。两边的模型名必须一致；例如 LiteLLM 中配置 `model_name: gpt-5`，Codex 就写 `model = "gpt-5"`，不要把上游的 `openai/gpt-5` 直接当成 Codex 的模型名。
 
-Codex 的用户级配置 `C:\Users\你的名字\.codex\config.toml`：
+Codex 的用户级配置 `~/.codex/config.toml`：
 
 ```toml
 model = "gpt-5"                         # 必须匹配 LiteLLM 的 model_name
@@ -237,13 +244,13 @@ env_key = "LITELLM_API_KEY"             # 只写环境变量名，不要写密�
 wire_api = "responses"
 ```
 
-PowerShell 中传入密钥并启动：
+传密钥并启动：
 
-```powershell
-$env:LITELLM_API_KEY = '你的 LiteLLM Key'
-codex
-Remove-Item Env:LITELLM_API_KEY
+```bash
+LITELLM_API_KEY='你的 LiteLLM Key' codex
 ```
+
+需要长期生效就写进 `~/.bashrc`（`export LITELLM_API_KEY=...`），别写进 `config.toml`。
 
 当前 Codex 自定义 provider 使用 Responses API。LiteLLM 代理必须能处理 `/v1/responses`；只有 Chat Completions（`/v1/chat/completions`）的代理不能直接这样接入。`model_provider` 和 `model_providers` 放在用户级配置，不要放项目级 `.codex/config.toml`。
 
@@ -308,7 +315,7 @@ model_auto_compact_token_limit = 100000
 全局规则放在：
 
 ```text
-C:\Users\你的名字\.codex\AGENTS.md
+~/.codex/AGENTS.md
 ```
 
 临时覆盖可以使用同目录下的 `AGENTS.override.md`。项目内的 `AGENTS.md` 会从 Git 根目录向当前目录逐层加载，越靠近当前目录的规则优先级越高。不要把密码、Token 或内部密钥写进这个文件。
@@ -358,7 +365,7 @@ C:\Users\你的名字\.codex\AGENTS.md
 
 ### 7.4 始终检查结果
 
-```powershell
+```bash
 git status
 git diff
 ```
@@ -377,27 +384,27 @@ git diff
 
 `codex exec` 是非交互模式，适合脚本、CI 和一次性检查。默认只读，自动化时按最小权限显式设置：
 
-```powershell
+```bash
 codex exec --sandbox read-only "总结项目结构，并列出最危险的五个区域"
 ```
 
 需要修改文件时：
 
-```powershell
+```bash
 codex exec --sandbox workspace-write "修复测试失败的最小问题，并运行相关测试"
 ```
 
 常用选项：
 
-```powershell
+```bash
 codex exec --json "检查仓库中的 TODO，并输出 JSONL 结果"
-codex exec -o .\result.md "生成发布说明"
+codex exec -o ./result.md "生成发布说明"
 codex exec resume --last "继续处理上一轮发现的问题"
 ```
 
 把命令输出作为上下文传给 Codex：
 
-```powershell
+```bash
 mvn test 2>&1 | codex exec "总结失败原因，并给出最小修复建议"
 ```
 
@@ -409,37 +416,40 @@ mvn test 2>&1 | codex exec "总结失败原因，并给出最小修复建议"
 
 ## 9. 常见问题
 
-**Q：`codex` 命令找不到**  
-重开终端刷新 PATH；仍不行就检查安装目录，或改用 npm 安装。
+**Q：`codex: command not found`**
+重开终端刷新 `PATH`；仍不行就检查 npm 全局 `bin` 目录是否在 `PATH` 里，或改用安装脚本。
 
-**Q：每次都要确认，能少一点吗？**  
+**Q：每次都要确认，能少一点吗？**
 用 `/permissions` 切换到 Auto，或启动时使用 `--ask-for-approval on-request`。不要为了少确认直接开启 `danger-full-access`。
 
-**Q：它不能联网或安装依赖**  
+**Q：它不能联网或安装依赖**
 这是默认安全策略。命令网络访问默认关闭；先确认是否真的需要联网，再按项目规则开启。网页搜索使用 `--search`，不等于给本地命令开放网络。
 
-**Q：它说改完了，但文件不对**  
+**Q：它说改完了，但文件不对**
 执行 `/diff`、`git diff` 和 `git status`，确认当前目录、修改文件和实际差异。必要时用 `Esc` 两次从上一步分叉，或用 Git 恢复。
 
-**Q：`AGENTS.md` 没生效**  
+**Q：`AGENTS.md` 没生效**
 确认文件名和目录位置，检查是否存在更近的 `AGENTS.override.md`，然后重启 Codex。可以让它执行：`列出本次加载的所有 AGENTS.md 及其优先级`。
 
-**Q：对话太长后开始忘事**  
+**Q：对话太长后开始忘事**
 使用 `/compact` 总结当前对话；话题已经变化时用 `/new` 开新对话，需要旧上下文时再 `codex resume`。
 
-**Q：怎么排查安装或登录问题？**  
+**Q：怎么排查安装或登录问题？**
 执行 `codex doctor`，再用 `codex login status` 检查凭据；查看当前会话配置可用 `/status`。
+
+**Q：Windows 原生环境怎么配？**
+见 [`../windows.md`](../windows.md) 第 4 节。
 
 ---
 
 ## 10. 进阶方向（用熟后再看）
 
-- **MCP**：通过 `codex mcp` 接入外部工具和数据源
-- **Skills / Plugins**：把重复流程封装成可复用能力
-- **Subagents**：把大型调查拆给专门的子 agent
+- **MCP**：通过 `codex mcp` 接入外部工具和数据源，见 [`mcp使用指南.md`](./mcp使用指南.md)
+- **Skills / Plugins**：把重复流程封装成可复用能力，见 [`skill使用指导.md`](./skill使用指导.md)、[`plugin使用指南.md`](./plugin使用指南.md)
+- **Subagents**：把大型调查拆给专门的子 agent，见 [`subagent使用指南.md`](./subagent使用指南.md)
+- **Hooks**：把格式化、检查和安全规则自动化，见 [`hook使用指南.md`](./hook使用指南.md)
 - **Codex cloud**：把任务交给云端环境执行
 - **IDE extension**：在支持的编辑器中使用 Codex
-- **Hooks / Rules**：把格式化、检查和安全规则自动化
 
 这些功能先按需要启用，不要为了一个简单任务提前搭完整工作流。
 
@@ -448,8 +458,8 @@ mvn test 2>&1 | codex exec "总结失败原因，并给出最小修复建议"
 ## 附录：一页速查
 
 ```text
-安装        powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
-启动        cd 项目目录; codex
+安装        npm install -g @openai/codex
+启动        cd 项目目录 && codex
 登录        codex login
 检查登录    codex login status
 体检        codex doctor
@@ -457,7 +467,7 @@ mvn test 2>&1 | codex exec "总结失败原因，并给出最小修复建议"
 代码审查    codex review --uncommitted
 非交互      codex exec "任务"
 实时搜索    codex --search "问题"
-图片上下文  codex --image .\image.png "问题"
+图片上下文  codex --image ./image.png "问题"
 
 界面        @文件       引用文件
             !命令       执行本地命令
@@ -483,6 +493,7 @@ mvn test 2>&1 | codex exec "总结失败原因，并给出最小修复建议"
 项目配置    ./.codex/config.toml（受信任项目）
 项目规则    ./AGENTS.md
 全局规则    ~/.codex/AGENTS.md
+Windows     ../windows.md
 ```
 
 官方文档：

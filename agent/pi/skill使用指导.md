@@ -61,7 +61,7 @@ Pi 会扫描下列位置，包含 `SKILL.md` 的目录会被**递归发现**：
 
 项目级 Skill 里的文件**可能会让模型执行脚本或改文件**，所以 Pi 在加载项目本地资源前必须先拿到信任决定（见 [`配置-权限与规则.md`](./配置-权限与规则.md) 第 1 节）。没信任时项目 Skill 不会生效：
 
-```powershell
+```bash
 pi --approve        # 本次直接信任项目资源
 pi --no-approve     # 本次完全不加载项目本地资源
 ```
@@ -89,7 +89,7 @@ pi --no-approve     # 本次完全不加载项目本地资源
 
 按 Skill 项目的说明安装。例如用 Skills CLI 全局安装：
 
-```powershell
+```bash
 npx skills add <owner>/<repository> -g
 ```
 

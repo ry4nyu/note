@@ -1,6 +1,6 @@
 # Claude Code 上手指南
 
-本文基于 Claude Code 2.1.x（Windows + PowerShell 环境），macOS / Linux 差别会单独标注。
+本文基于 Claude Code 2.1.x（**Linux / WSL 环境**），macOS 基本一致。Windows 原生环境的差异（PowerShell 工具、`defaultShell`、安装脚本、Hook 编码）统一放在 [`../windows.md`](../windows.md)，本文不重复。
 
 ---
 
@@ -18,14 +18,14 @@ Claude Code 是一个**跑在终端里的编程助手**。它不是网页版聊�
 
 ## 1. 快速开始（三步版）
 
-```powershell
-# 1) 安装（PowerShell 里执行）
-irm https://claude.ai/install.ps1 | iex
+```bash
+# 1) 安装
+curl -fsSL https://claude.ai/install.sh | bash
 
 # 2) 配好模型接入（见第 5 节，二选一：官方账号 或 公司网关）
 
 # 3) 进项目目录，启动
-cd C:\Users\你的名字\IdeaProjects\你的项目
+cd ~/code/你的项目
 claude
 ```
 
@@ -39,46 +39,40 @@ claude
 
 | 依赖 | 说明 |
 |---|---|
-| Git for Windows | **建议装**。装了它才能用 bash 工具；不装也能跑，会自动降级用 PowerShell |
-| Windows 版本 | Windows 10 1809+ / Windows 11 均可 |
-| 终端 | 推荐 Windows Terminal + PowerShell 7，体验最好 |
+| bash | Linux / WSL 自带 |
+| 终端 | 任意现代终端都行；tmux / zellij 里跑也可以 |
 | Node.js | 官方安装脚本**不需要**；只有走 npm 安装才需要 18+ |
+| Git | 建议项目都在 git 仓库里，回退和 review 都靠它 |
 
-Git 没装的话去 <https://git-scm.com/download/win> 下载，一路默认即可。
+> **WSL 用户**：先按 [`../wsl.md`](../wsl.md) 把 WSL 配好（镜像网络、代理、interop），再装 Claude Code。装在 **WSL 里**，不是 Windows 侧。
 
 ### 2.2 安装 Claude Code
 
 **方式 A：官方安装脚本（推荐，不需要 Node.js）**
 
-```powershell
-irm https://claude.ai/install.ps1 | iex
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-装到 `%USERPROFILE%\.local\bin`，如需手动加 PATH 就加这个目录。这种方式支持后台自动更新。
+装到 `~/.local/bin`，如需手动加 PATH 就加这个目录。这种方式支持后台自动更新。
 
 **方式 B：npm（已有 Node.js 18+ 的话）**
 
-```powershell
+```bash
 npm install -g @anthropic-ai/claude-code
 ```
 
 > **不推荐用 cnpm / 淘宝镜像装**，容易漏文件。
 > 如果安装时报 403、地区限制之类的错，先按第 5 节配好网关再试。
 
-**macOS / Linux / WSL：**
-
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-```
-
 ### 2.3 验证安装
 
-```powershell
+```bash
 claude --version     # 能打印版本号就成了
 claude doctor        # 体检，装完建议跑一次
 ```
 
-> **如果提示 `claude` 不是可识别的命令**：关掉终端重新开一个（PATH 需要刷新）。还不行就手动把安装目录加进 PATH，或用 `claude doctor` 看提示。
+> **如果提示 `claude: command not found`**：`source ~/.bashrc` 或用 `exec $SHELL` 重开一个（PATH 需要刷新）。还不行就确认 `~/.local/bin` 在 `PATH` 里。
 
 ---
 
@@ -86,14 +80,14 @@ claude doctor        # 体检，装完建议跑一次
 
 ### 3.1 启动
 
-```powershell
-cd C:\path\to\your\project     # 一定要先进项目目录，它按目录加载上下文
-claude                         # 进入交互界面
+```bash
+cd ~/code/your-project     # 一定要先进项目目录，它按目录加载上下文
+claude                     # 进入交互界面
 ```
 
 常用启动参数：
 
-```powershell
+```bash
 claude "帮我看看这个项目的登录逻辑在哪"   # 带一句初始问题直接启动
 claude -c                                  # 继续上一次对话（continue）
 claude -r                                  # 从历史对话列表里挑一个恢复（resume）
@@ -106,7 +100,7 @@ claude update                              # 升级到最新版
 | 操作 | 效果 |
 |---|---|
 | 直接打字 + 回车 | 提问 / 下指令 |
-| `alt+v` | 粘贴图片给agent |
+| `Ctrl+V`（或终端自身的粘贴键） | 粘贴图片给 agent |
 | `@文件名` | 引用某个文件，输入 `@` 后有自动补全 |
 | `!命令` | 直接执行 shell 命令（如 `!git status`、`!mvn test`） |
 | `#内容` | 把这条内容记进记忆文件（CLAUDE.md），下次还生效 |
@@ -117,6 +111,8 @@ claude update                              # 升级到最新版
 | `Ctrl+J` 或 `\` + 回车 | 输入换行（不是发送） |
 | `Ctrl+C` | 清空当前输入；连按两次退出 |
 | `Ctrl+D` | 退出 |
+
+> 终端复用器（tmux）会把部分组合键截走，`Ctrl+B` 尤其常见。冲突时改 tmux 前缀键，或直接在普通终端里用。
 
 ---
 
@@ -139,8 +135,9 @@ claude update                              # 升级到最新版
 | `/doctor` | 体检，出问题先跑它 |
 | `/review` | 让它 review 当前分支的改动 |
 | `/mcp` | 管理 MCP 外部工具接入 |
-| `/agents` | 管理子 agent |
 | `/exit` | 退出（等同 Ctrl+D） |
+
+> `/agents` 的交互式向导已在 2.1.198 移除，现在直接让 Claude 改 `~/.claude/agents/*.md`，见 [`subagent使用指南.md`](./subagent使用指南.md)。
 
 ---
 
@@ -154,15 +151,16 @@ claude update                              # 升级到最新版
 
 适用于自己有 Claude Pro / Max 订阅，或从 <https://console.anthropic.com> 申请了 API Key 的情况。
 
-```powershell
+```bash
 claude          # 启动后输入 /login，按提示在浏览器里完成授权
 ```
 
 或者用 API Key（在环境变量里配）：
 
-```powershell
-# 永久写入用户环境变量（配完要重开终端）
-[Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-xxxxx", "User")
+```bash
+# 追加到 ~/.bashrc，配完 source 一下
+echo 'export ANTHROPIC_API_KEY="sk-ant-xxxxx"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 #### 方式 B：公司 / 自建网关
@@ -174,7 +172,7 @@ claude          # 启动后输入 /login，按提示在浏览器里完成授权
 
 推荐直接写进配置文件，比设环境变量省事、跨终端生效：
 
-编辑 `C:\Users\你的名字\.claude\settings.json`（没有就新建）：
+编辑 `~/.claude/settings.json`（没有就新建）：
 
 ```json
 {
@@ -190,7 +188,7 @@ claude          # 启动后输入 /login，按提示在浏览器里完成授权
 
 > **注意**：
 > - 三个 `ANTHROPIC_DEFAULT_*_MODEL` 都填上网关支持的同一个模型名，否则切换模型时可能报错。
-> - 这个文件含密钥，**不要提交到 git**。
+> - 这个文件含密钥，**不要提交到 git**（本仓库的 `.claude/` 已在 `.gitignore` 里）。
 > - 改完重开终端或重启 `claude` 生效。
 > - 可以一次配完 —— 顺手把默认权限模式也设了（见 5.3），在同一个 JSON 里再加一段：
 >   `"permissions": { "allow": [], "defaultMode": "auto" }`，注意和 `env` 之间要加逗号。
@@ -221,13 +219,13 @@ Claude 每次要改文件、跑命令，都会先问你。模式决定问得多�
 
 **三种开启方式：**
 
-```powershell
+```bash
 claude --permission-mode auto          # 仅当前会话
 ```
 
 或在交互界面里按 `Shift+Tab` 循环切换到 auto（界面上会显示当前模式名）。
 
-**设为永久默认（推荐）** —— 编辑 `C:\Users\你的名字\.claude\settings.json`：
+**设为永久默认（推荐）** —— 编辑 `~/.claude/settings.json`：
 
 ```json
 {
@@ -242,7 +240,7 @@ claude --permission-mode auto          # 仅当前会话
 
 > 想搞清 auto 到底放行什么、拦什么，跑这几条命令（只读，安全）：
 >
-> ```powershell
+> ```bash
 > claude auto-mode config      # 看当前生效的规则（你的自定义 + 默认值）
 > claude auto-mode defaults    # 只看出厂默认规则
 > claude auto-mode critique    # 让 AI 点评你自己写的规则
@@ -262,79 +260,13 @@ claude --permission-mode auto          # 仅当前会话
 > 1. **auto 写在项目级 `.claude/settings.json` 里不生效**，会被静默忽略 —— 必须写在用户级 `~/.claude/settings.json`，或者用 `--permission-mode auto`。`bypassPermissions` 同理。
 > 2. **auto 需要模型/套餐支持**。不满足条件时它**不会报错**，而是静默退回 Manual 模式 —— 所以"配置写了却不生效"多半不是配置写错，是模型不支持。用底栏徽标或 `/status` 确认当前实际生效的模式。
 
-### 5.4 让 Claude 默认用 PowerShell（Windows）
+### 5.4 shell 相关
 
-**先分清楚这是两件独立的事**，很多人只配了一个然后纳闷为什么没变化：
+Linux / WSL 下没有需要配的东西：`bash` 工具和 `!` 命令都走 bash，`defaultShell` 保持默认即可。
 
-| 想改什么 | 配哪个 | 作用范围 |
-|---|---|---|
-| Claude **自己执行命令**时用 PowerShell | `CLAUDE_CODE_USE_POWERSHELL_TOOL=1` | 模型调用的 shell 工具 |
-| **你在输入框敲 `!命令`** 时用 PowerShell | `defaultShell: "powershell"` | 只影响 `!` 开头的命令 |
+只有一个例外值得知道：**Skill / Command 正文里的 `!` 注入块，`shell` 字段默认是 `bash` 且与平台无关**，别指望它跟着你的登录 shell 变。
 
-**1）启用 PowerShell 工具**（让 Claude 把 PowerShell 当主 shell，而不是 Bash）
-
-在 `~/.claude/settings.json` 的 `env` 段里加：
-
-```json
-{
-  "env": {
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
-  }
-}
-```
-
-- Windows 上这个工具正在逐步默认开启。不想要就把值改成 `"0"` 显式关掉。
-- 开启后，Windows 上 Claude 会**优先用 PowerShell**，不再默认走 Bash。
-- 它会自动加 `-ExecutionPolicy Bypass`。如果公司安全策略要求遵守执行策略，设 `CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY=1` 关掉这个行为。
-- macOS / Linux 上也能开，但需要先装 `pwsh` 并加进 PATH。
-
-**2）让 `!` 命令走 PowerShell**
-
-在 `~/.claude/settings.json` **顶层**（不是 env 里）加：
-
-```json
-{
-  "defaultShell": "powershell"
-}
-```
-
-合法值只有两个：`"bash"` 和 `"powershell"`。
-
-> ⚠️ **注意**：`defaultShell` 在**所有平台上默认都是 `bash`，Windows 上也不会自动变成 PowerShell**。所以想用 PowerShell 必须显式设置。
-
-**合起来的完整配置**（网关 + 权限模式 + shell；上下文窗口见 5.5）：
-
-```json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "https://网关地址",
-    "ANTHROPIC_AUTH_TOKEN": "令牌",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "模型名",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "模型名",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "模型名",
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
-  },
-  "permissions": {
-    "allow": [],
-    "defaultMode": "auto"
-  },
-  "defaultShell": "powershell"
-}
-```
-
-**怎么验证生效了：**
-
-```powershell
-!$PSVersionTable.PSVersion      # 输入框里敲这个
-```
-
-- 输出形如 `Major Minor Patch ... 7.4.x` → 走的是 PowerShell ✅
-- 输出空白或报错 → 还在走 bash
-- 如果显示 `5.1`，说明用的是系统自带的 Windows PowerShell，不是 PowerShell 7，语法上有差别（Claude 会自动适配，但你手写命令时要注意）
-
-也可以直接问它：`你现在执行命令默认用哪个 shell？`
-
-> **小知识**：不要在教程/文档里假设 PowerShell 是 7 —— 先确认 `pwsh` 装没装。装的话推荐用 winget 装 PowerShell 7，体验比 5.1 好很多。
+Windows 原生环境（PowerShell 工具、`defaultShell: "powershell"`、执行策略）见 [`../windows.md`](../windows.md) 第 3 节。
 
 ### 5.5 调整上下文窗口与自动压缩（走网关模型必看）
 
@@ -344,7 +276,7 @@ claude --permission-mode auto          # 仅当前会话
 
 #### 两个配置项，必须一起设
 
-在 `C:\Users\你的名字\.claude\settings.json` 里加这两项：
+在 `~/.claude/settings.json` 里加这两项：
 
 ```json
 {
@@ -383,22 +315,20 @@ claude --permission-mode auto          # 仅当前会话
 }
 ```
 
-> **原理**（逆向 claude.exe 2.1.282 得到）：内部算窗口的函数结尾是
+> **原理**（逆向 Claude Code 2.1.282 得到）：内部算窗口的函数结尾是
 > `if (MAX_CONTEXT_TOKENS > 0 && 是未知模型) return MAX_CONTEXT_TOKENS; return 200000;`
 > 而「是否未知模型」的判断是：**能把模型 id 解析成任何一个内置 Claude 模型，就返回否**。`claude-sonnet-4-6` 是本版本内置表里的真实 id，所以 `behavesAs` 指向它 = 主动放弃未知模型身份。
 
 #### 验证（改完必须重启 claude）
 
-```powershell
+```text
 /context        # 看窗口总量是不是 1M 量级
 /autocompact    # 看自动压缩窗口的实际数值 + 生效来源
 ```
 
 `/autocompact` 会显示这个窗口是**从哪来的**（`env` / `settings` / `model default` / 实验值）。**如果来源显示是 `model default`，说明你的两项配置压根没被读到** —— 先回去查 JSON 语法和缩进。
 
-#### 完整的 settings.json（含 1M 窗口）
-
-和 5.4 那份合并起来就是全量配置：
+#### 完整的 settings.json
 
 ```json
 {
@@ -408,7 +338,6 @@ claude --permission-mode auto          # 仅当前会话
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1",
     "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
   },
   "modelPicker": {
@@ -425,7 +354,6 @@ claude --permission-mode auto          # 仅当前会话
     "allow": [],
     "defaultMode": "auto"
   },
-  "defaultShell": "powershell",
   "autoCompactWindow": 900000
 }
 ```
@@ -501,11 +429,15 @@ Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Redis，JDK 17
 
 ---
 
-## 8. 在 IntelliJ IDEA 里用（可选）
+## 8. 在 IDE 里用（可选）
 
-除了终端，也可以装 JetBrains 插件，在 IDE 里直接开面板：
+### 8.1 VS Code / Cursor
 
-1. IDEA → `Settings` → `Plugins` → 搜索 **Claude Code** → 安装 → 重启
+WSL 项目用 **Remote-WSL** 打开，然后在 IDE 的终端里直接 `claude`，和终端用法完全一样。
+
+### 8.2 JetBrains（IntelliJ IDEA 等）
+
+1. `Settings` → `Plugins` → 搜索 **Claude Code** → 安装 → 重启
 2. 右侧边栏出现 Claude 图标，点开即用
 3. 快捷键 `Ctrl+Esc` 唤起
 
@@ -515,19 +447,14 @@ Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Redis，JDK 17
 
 ## 9. 常见问题
 
-**Q：`claude` 命令找不到**
-关掉终端重开。还不行跑 `claude doctor`，或检查安装目录是否在 PATH 里。
-
-**Q：PowerShell 报「禁止运行脚本」**
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-```
+**Q：`claude: command not found`**
+`source ~/.bashrc` 或重开终端；还不行跑 `claude doctor`，或检查 `~/.local/bin` 是否在 `PATH` 里。
 
 **Q：安装时报错 / 403 / 提示不支持当前地区**
-Claude Code 有地区检测，走官方账号的话国内直连大概率不行，需要代理。**走公司网关则通常不受影响**，先把 5.1 节方式 B 配好再装或再启动。
+Claude Code 有地区检测，走官方账号的话国内直连大概率不行，需要代理（WSL 里的代理怎么通见 [`../wsl.md`](../wsl.md) 第 2、4 节）。**走公司网关则通常不受影响**，先把 5.1 节方式 B 配好再装或再启动。
 
 **Q：连不上 / 一直转圈**
-- 官方账号：检查网络/代理是否正常
+- 官方账号：`curl -I https://api.anthropic.com` 看网络/代理是否正常
 - 网关：`/status` 看地址对不对；把 `ANTHROPIC_BASE_URL` 复制到浏览器里试试能不能通
 - 令牌过期就找对接人换新的
 
@@ -554,6 +481,12 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
 **Q：出问题了怎么反馈 / 看日志**
 `/doctor` 看诊断；`/bug` 可以提反馈。
 
+**Q：WSL 里启动很慢（约 6 秒），或者 `rg` 用不了**
+先看 [`../wsl.md`](../wsl.md) 第 3 节的 interop 副作用 —— 关掉 interop 之后 Claude Code 启动会变慢、ripgrep 可能失效。取舍见那一节。
+
+**Q：Windows 原生环境怎么配**
+见 [`../windows.md`](../windows.md)：PowerShell 工具、`defaultShell`、Hook 的 `.ps1` 编码坑都在那里。
+
 ---
 
 ## 10. 进阶方向（用熟了再看）
@@ -563,17 +496,17 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
 - **Hooks**：在特定时机自动执行脚本（如每次改完文件自动格式化、拦住改 `.env`、收尾前要求先跑测试），详见 [`Hook使用指南.md`](./Hook使用指南.md)
 - **自定义 Slash 命令**：把一句话的固定提示词（可带参数）固化成一个 `/命令`，详见 [`command使用指南.md`](./command使用指南.md)
 - **Skill**：把一类任务的流程、检查单和附带文件打包成可复用能力，详见 [`skill使用指南.md`](./skill使用指南.md)
-- **子 agent（Subagents）**：定义专职 agent，比如"专门做代码 review 的"、"专门写单测的"
+- **子 agent（Subagents）**：定义专职 agent，比如"专门做代码 review 的"、"专门写单测的"，详见 [`subagent使用指南.md`](./subagent使用指南.md)
 - **Headless 模式**：`claude -p "..." --output-format json` 塞进 CI/CD 流水线做自动 review
 
-这些都能通过 `/config`、`~/.claude/` 目录下的配置文件搞定，需要的时候再研究。
+这些都能通过 `~/.claude/` 目录下的配置文件搞定，需要的时候再研究。
 
 ---
 
 ## 附录：一页速查
 
-```
-安装        irm https://claude.ai/install.ps1 | iex
+```text
+安装        curl -fsSL https://claude.ai/install.sh | bash
 启动        cd 项目目录 && claude
 继续上次    claude -c
 恢复对话    claude -r
@@ -582,7 +515,7 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
 体检        claude doctor
 
 界面        @文件    引用文件
-            !命令    执行 shell
+            !命令    执行 shell（走 bash）
             #内容    记入记忆
             /命令    斜杠命令
             Esc      打断
@@ -596,16 +529,14 @@ Claude Code 有地区检测，走官方账号的话国内直连大概率不行�
                                              永久默认（项目级不生效！）
             claude auto-mode config          看 auto 生效规则
 
-Shell       env.CLAUDE_CODE_USE_POWERSHELL_TOOL: "1"   Claude 自己用 PowerShell
-            defaultShell: "powershell"                 ! 命令走 PowerShell
-            !$PSVersionTable.PSVersion                 验证
-
 上下文窗口  env.CLAUDE_CODE_MAX_CONTEXT_TOKENS: "1000000"  模型窗口（字符串！）
             autoCompactWindow: 900000                    压缩阈值（顶层数字，10w–100w）
             ⚠️ modelPicker.behavesAs 一设，上面两项全失效，别设
             /context        看窗口总量
             /autocompact    看压缩窗口实际值 + 生效来源
 
-配置        ~/.claude/settings.json   模型 / 网关 / 权限 / shell / 上下文窗口
+配置        ~/.claude/settings.json   模型 / 网关 / 权限 / 上下文窗口
             ./CLAUDE.md               项目级规矩（可提交 git）
+            ./.claude/rules/*.md      分域规则（paths 控制加载时机）
+            Windows 原生差异见 ../windows.md
 ```

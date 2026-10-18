@@ -1,6 +1,6 @@
 # Claude Code Rule 使用指南
 
-本文面向本仓库团队成员，说明怎么在 Claude Code 里组织**项目规则与记忆**：`CLAUDE.md`、`.claude/rules/`、`paths` 作用域，以及自动记忆。文中机制基于 Claude Code 2.1.x（Windows + PowerShell 环境），跟随版本变化，遇到不一致先敲 `/memory` 看本次实际加载了什么。
+本文面向本仓库团队成员，说明怎么在 Claude Code 里组织**项目规则与记忆**：`CLAUDE.md`、`.claude/rules/`、`paths` 作用域，以及自动记忆。文中机制基于 Claude Code 2.1.x（Linux / WSL 环境），跟随版本变化，遇到不一致先敲 `/memory` 看本次实际加载了什么。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式；第 6 节是 `CLAUDE.md` 入门）。「什么时候该用 Rule、什么时候该用别的」见 [`skill使用指南.md`](./skill使用指南.md) 第 2 节和 [`Hook使用指南.md`](./Hook使用指南.md) 第 1 节。Codex / Pi 的对应物是本仓库的 `.agents/AGENTS.md` 和 `.agents/spec/`，**Claude Code 不读那两个位置**（第 8 节）。
 
@@ -40,12 +40,12 @@ Claude Code 里能固化规则的地方不止一处，先分清再动手：
 
 Claude Code 按四个层级收集指令文件，从宽到窄：
 
-| 层级 | 位置（Windows） | 作用范围 | 能提交给同事吗 |
+| 层级 | 位置（Linux / WSL） | 作用范围 | 能提交给同事吗 |
 |---|---|---|---|
-| **Managed** | 托管策略目录 / `C:\Program Files\ClaudeCode\CLAUDE.md` | 全组织 | 由管理员下发 |
-| **User** | `C:\Users\你的名字\.claude\CLAUDE.md` 和 `.claude\rules\` | 你所有项目 | 否，只在本机 |
-| **Project** | `<项目>\CLAUDE.md`、`<项目>\.claude\CLAUDE.md`、`<项目>\.claude\rules\` | 单个项目 | **能**，跟着仓库走 |
-| **Local** | `<项目>\CLAUDE.local.md` | 单个项目 | 否，个人用 |
+| **Managed** | 托管策略目录（管理员下发，路径由策略决定） | 全组织 | 由管理员下发 |
+| **User** | `~/.claude/CLAUDE.md` 和 `~/.claude/rules/` | 你所有项目 | 否，只在本机 |
+| **Project** | `<项目>/CLAUDE.md`、`<项目>/.claude/CLAUDE.md`、`<项目>/.claude/rules/` | 单个项目 | **能**，跟着仓库走 |
+| **Local** | `<项目>/CLAUDE.local.md` | 单个项目 | 否，个人用 |
 
 **优先级从低到高：Managed → User → Project → Local。** 后面的覆盖前面的。托管层永远生效，而且**排除不掉**。
 
@@ -205,7 +205,7 @@ claude --debug 看加载过程的日志
 
 Hook 的配置格式和脚本写法见 [`Hook使用指南.md`](./Hook使用指南.md) 第 3、8 节。
 
-**排除掉不想加载的文件** —— 写在 `C:\Users\你的名字\.claude\settings.json`：
+**排除掉不想加载的文件** —— 写在 `~/.claude/settings.json`：
 
 ```json
 {
@@ -238,7 +238,7 @@ Hook 的配置格式和脚本写法见 [`Hook使用指南.md`](./Hook使用指�
 
 - **一个规则文件只讲一个域**，不把数据库、接口、测试揉进一个 `everything.md`。
 - **引用而不是复制**：指向权威文档的位置，别把整篇内容拷进来 —— 复制出来的副本迟早和上游不一致，还白占上下文。
-- **不写密码、Token、私钥**；示例路径用 `C:\Users\你的名字\...` 这类占位符。
+- **不写密码、Token、私钥**；示例路径用 `~/code/...` 这类占位符。
 - **给人看的索引和变更记录用 `.txt`**，别用 `.md`。
 - **写完跑一次 `/memory`**，确认加载范围和你以为的一致。
 

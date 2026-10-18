@@ -1,6 +1,6 @@
 # Claude Code Skill 使用指南
 
-本文面向本仓库团队成员，说明如何在 Claude Code 里选择、使用和维护 Skill。文中机制基于 Claude Code 2.1.x（Windows + PowerShell 环境），命令和默认行为随版本变化，遇到不一致先看 `claude --help` 和 `/help`。
+本文面向本仓库团队成员，说明如何在 Claude Code 里选择、使用和维护 Skill。文中机制基于 Claude Code 2.1.x（Linux / WSL 环境），命令和默认行为随版本变化，遇到不一致先看 `claude --help` 和 `/help`。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式）；Skill 在 Claude Code 整体能力里的位置见该文第 10 节。需要独立上下文预算或并行的活用子代理，见 [`subagent使用指南.md`](./subagent使用指南.md)。Codex / Pi 的对应文档见 [`../codex/skill使用指导.md`](../codex/skill使用指导.md)、[`../pi/skill使用指导.md`](../pi/skill使用指导.md)。
 
@@ -177,10 +177,10 @@ weekly-report/
 ├─ references/
 │  └─ templates.md             # 周报模板、历史样例、措辞禁区
 └─ scripts/
-   └─ collect_commits.ps1      # 拉提交并按分类打标，输出结构化结果
+   └─ collect_commits.sh       # 拉提交并按分类打标，输出结构化结果
 ```
 
-正文里对应写两句：**要套模板时读 `references/templates.md`**；**先跑 `${CLAUDE_SKILL_DIR}/scripts/collect_commits.ps1` 拿结构化结果**，再在正文里做归类和取舍——脚本负责确定性，Skill 负责判断。
+正文里对应写两句：**要套模板时读 `references/templates.md`**；**先跑 `${CLAUDE_SKILL_DIR}/scripts/collect_commits.sh` 拿结构化结果**，再在正文里做归类和取舍——脚本负责确定性，Skill 负责判断。
 
 ---
 
@@ -284,7 +284,7 @@ Skill 写完放哪，决定谁能用到。三种方式：
 
 插件这条路大致是：
 
-```powershell
+```bash
 claude plugin init my-skill             # 在 ~/.claude/skills/my-skill/ 起骨架，下次启动按 my-skill@skills-dir 加载
 claude plugin validate .claude/skills   # 校验目录里的 skill / agent / command 结构
 claude plugin eval                      # 跑行为验证用例

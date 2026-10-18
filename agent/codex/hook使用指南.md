@@ -1,6 +1,6 @@
 # Codex Hook 使用指南
 
-本文介绍 Codex Hooks 的基本配置、常用场景和 Windows 下的最小实践。Hooks 的具体行为可能随 Codex 版本变化，遇到不一致时先查看官方文档和执行 `/hooks`。
+本文介绍 Codex Hooks 的基本配置和常用场景，环境为 **Linux / WSL**（Windows 原生环境要用 `commandWindows` 同时指定一条 PowerShell 命令，见 [`../windows.md`](../windows.md) 第 4 节）。Hooks 的具体行为可能随 Codex 版本变化，遇到不一致时先查看官方文档和执行 `/hooks`。
 
 ## 1. Hook 是什么
 
@@ -48,7 +48,6 @@ Codex 会从各个配置层加载 Hook：
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/session_start.py\"",
-            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/session_start.py\"",
             "statusMessage": "加载项目提示",
             "timeout": 10
           }
@@ -131,7 +130,6 @@ MCP 工具：mcp__filesystem__read_file
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use.py\"",
-            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use.py\"",
             "statusMessage": "检查命令安全性",
             "timeout": 10
           }
@@ -216,7 +214,7 @@ if re.search(r"\brm\s+-rf\b|\bformat\b", command, re.IGNORECASE):
 2. JSON 或 TOML 格式是否正确；
 3. 是否执行 `/hooks` 并信任了当前版本的 Hook；
 4. `matcher` 是否匹配实际事件值；
-5. Windows 下 `py -3`、脚本路径和脚本依赖是否可用；
+5. 脚本的解释器（`python3` / `node` / `bash`）在 `PATH` 上、路径和脚本依赖是否可用；
 6. 脚本是否从 stdin 读取 JSON，而不是等待交互输入。
 
 ### 项目 Hook 没有出现
@@ -241,7 +239,8 @@ hooks = false
 ## 10. 建议
 
 - 从一个事件、一个脚本开始，确认输入输出后再增加规则；
-- 项目 Hook 使用 Git 根目录解析脚本路径，不要依赖启动 Codex 时所在的子目录；
+- 项目 Hook 使用 Git 根目录解析脚本路径（`$(git rev-parse --show-toplevel)`），不要依赖启动 Codex 时所在的子目录；
+- 脚本用 `#!/usr/bin/env python3` 之类的方式声明解释器，别写死发行版的路径；
 - Hook 脚本保持短小、可审查、可重复执行；
 - 将阻止规则放在 `PreToolUse`，将检查和提示放在 `PostToolUse`；
 - 修改 Hook 后重新检查信任状态，并用一个无害命令做验证；

@@ -1,6 +1,6 @@
 # Codex Skill 使用指导
 
-本文面向本仓库团队成员，说明如何选择、使用和维护 Codex Skill。
+本文面向本仓库团队成员，说明如何选择、使用和维护 Codex Skill。环境为 **Linux / WSL**。
 
 ## 1. Skill 是什么
 
@@ -29,7 +29,7 @@ $ponytail 简化这个实现，只保留需求必需的代码
 
 按 Skill 项目的安装说明执行。例如使用 Skills CLI 全局安装：
 
-```powershell
+```bash
 npx skills add <owner>/<repository> -g
 ```
 

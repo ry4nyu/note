@@ -1,8 +1,8 @@
 # Pi 上手指南
 
-给开发人员的 Pi 使用说明。基于 Pi 1.3.x（Windows 原生 + PowerShell、WSL 两种跑法都覆盖），命令和默认值随版本变化，遇到不一致先执行 `pi --help`。
+给开发人员的 Pi 使用说明。基于 Pi 1.3.x，**默认运行环境是 Linux / WSL**（Windows 原生的差异见 [`../windows.md`](../windows.md)）。命令和默认值随版本变化，遇到不一致先执行 `pi --help`。
 
-Pi 是 Earendil Works 做的终端编程 Agent。和 Claude Code、Codex 相比，它的取舍是"**最小内核 + 一切靠扩展**"：内置工具只有 `read` / `bash` / `powershell` / `edit` / `write` / `grep` / `find` / `ls`，其余能力（规划模式、代码图谱、技能）都通过扩展、包和 Skill 挂上去。
+Pi 是 Earendil Works 做的终端编程 Agent。和 Claude Code、Codex 相比，它的取舍是"**最小内核 + 一切靠扩展**"：内置工具只有 `read` / `bash` / `edit` / `write` / `grep` / `find` / `ls`（Windows 上另有 `powershell`），其余能力（规划模式、代码图谱、技能）都通过扩展、包和 Skill 挂上去。
 
 **本文只讲怎么用。配置、权限、环境选择都在下面的独立文档里，本文只做引用。**
 
@@ -12,10 +12,11 @@ Pi 是 Earendil Works 做的终端编程 Agent。和 Claude Code、Codex 相比�
 
 | 你想解决的问题 | 看这篇 |
 |---|---|
-| Pi 跑在 Windows 原生还是 WSL？用 PowerShell 还是 Bash？ | [`配置-运行环境.md`](./配置-运行环境.md) |
+| 装在 WSL 还是 Windows 原生、路径和 IDE 怎么配 | [`配置-运行环境.md`](./配置-运行环境.md) |
 | 怎么接公司网关、换模型、修"聊几句就压缩" | [`配置-模型接入.md`](./配置-模型接入.md) |
 | 权限为什么没有审批弹窗、工具怎么限制、`AGENTS.md` 怎么写 | [`配置-权限与规则.md`](./配置-权限与规则.md) |
-| WSL 本体怎么装（镜像网络、代理、interop、排错） | [`wsl.md`](./wsl.md) |
+| WSL 本体怎么装（镜像网络、代理、interop、排错） | [`../wsl.md`](../wsl.md) |
+| Windows 原生环境（PowerShell 工具、Git Bash、快捷键差异） | [`../windows.md`](../windows.md) |
 | 想写扩展 | [`Extension使用指南.md`](./Extension使用指南.md) |
 | 想用/写 Skill | [`skill使用指导.md`](./skill使用指导.md) |
 
@@ -23,19 +24,15 @@ Pi 是 Earendil Works 做的终端编程 Agent。和 Claude Code、Codex 相比�
 
 ## 1. 快速开始
 
-```powershell
+```bash
 # 1) 安装（需要 Node.js 22.19+）
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 
-# 2) 选运行环境（见第 2 节，花两分钟值得）
-#    正在做 Windows 原生应用 → Windows 原生 + PowerShell
-#    其它项目            → WSL
-
-# 3) 配模型接入：/login 官方账号，或写 ~/.pi/agent/models.json 接自建网关
+# 2) 配模型接入：/login 官方账号，或写 ~/.pi/agent/models.json 接自建网关
 #    详见 配置-模型接入.md
 
-# 4) 进项目目录启动
-cd C:\Users\你的名字\IdeaProjects\你的项目
+# 3) 进项目目录启动
+cd ~/code/你的项目
 pi
 ```
 
@@ -45,19 +42,16 @@ pi
 
 ---
 
-## 2. 先选运行环境
+## 2. 装在哪
 
-这是唯一一个"选错了后面一直难受"的决定：
+一句话：**装在 WSL 里，代码也放 WSL 文件系统**。只有依赖 Windows 工具链（.NET / MSBuild / COM / Windows 服务）的项目才用 Windows 原生。
 
-| 你在做什么 | 用什么 |
-|---|---|
-| **Windows 原生应用开发**（.NET / WPF / WinForms、MSBuild、COM、注册表、Windows 服务、驱动、Office 插件、Windows SDK 工具链） | **Windows 原生 + `powershell` 工具** |
-| 其它项目（Java / Go / Node / Python / 前端 / 部署在 Linux 的服务） | **WSL** |
-| 只读代码、评审、写文档 | Windows 原生最省事 |
+两条最容易踩的：
 
-一句话：**依赖 Windows 工具链的留在原生，其余全部进 WSL。**
+- **配置不跨环境共享**：`C:\Users\<you>\.pi\agent\` 对 WSL 里的 Pi 完全无效，模型和密钥要在 WSL 里重配一遍。
+- **代码别放 `/mnt/c`**：跨文件系统读写慢一个数量级，`git status`、`npm install`、编辑器索引都会明显变慢。
 
-两种方案的工具、配置位置、快捷键差异、常见坑，全部在 [`配置-运行环境.md`](./配置-运行环境.md)。记住最关键的一条：**配置和会话不跨环境共享**，Windows 上配好的模型在 WSL 里要重配一遍。
+装法、目录位置、IDE 搭配见 [`配置-运行环境.md`](./配置-运行环境.md)。
 
 ---
 
@@ -65,14 +59,14 @@ pi
 
 ### 3.1 启动
 
-```powershell
-cd C:\path\to\your\project     # 必须先切目录：Pi 按它发现文件、AGENTS.md 和配置，并按它给会话分组
-pi                             # 进入交互界面
+```bash
+cd ~/code/your-project     # 必须先切目录：Pi 按它发现文件、AGENTS.md 和配置，并按它给会话分组
+pi                         # 进入交互界面
 ```
 
 常用启动方式：
 
-```powershell
+```bash
 pi "先介绍一下这个项目结构，不要改文件"   # 带初始问题启动
 pi --continue                             # 继续当前目录上一次会话（-c）
 pi --resume                               # 从历史会话列表里挑一个（-r）
@@ -109,9 +103,9 @@ pi update                                 # 升级 Pi 和模型目录
 |---|---|
 | 直接输入 + `Enter` | 提交提问或指令 |
 | `Shift+Enter` 或 `Ctrl+J` | 输入内换行（不发送） |
-| `Ctrl+G` | 用外部编辑器写长提示词 |
+| `Ctrl+G` | 用 `$EDITOR` 写长提示词 |
 | `@文件名` | 搜索并引用文件，`Tab` 补全路径 |
-| `Alt+V` | 粘贴图片（Windows / WSL 都是这个键） |
+| `Alt+V` | 粘贴图片（WSL 下同样是 `Alt+V`，Windows Terminal 占用了 `Ctrl+V`） |
 | `!命令` | 执行 shell 命令，**输出进上下文**（如 `!git status`） |
 | `!!命令` | 执行 shell 命令，**输出不进上下文**（如 `!!npm test`） |
 | `/命令` | 斜杠命令，输入 `/` 弹出可搜索菜单 |
@@ -130,11 +124,11 @@ pi update                                 # 升级 Pi 和模型目录
 | 想要的效果 | 操作 |
 |---|---|
 | 调整当前任务方向 | 输入内容按 `Enter`（等当前工具调用跑完就生效） |
-| 追加后续任务 | Windows / WSL：`Ctrl+Q`（其它平台 `Alt+Enter`） |
-| 把排队的消息收回输入框 | Windows / WSL：`Alt+Q`（其它平台 `Alt+Up`） |
+| 追加后续任务 | WSL / Windows：`Ctrl+Q`（其它平台 `Alt+Enter`） |
+| 把排队的消息收回输入框 | WSL / Windows：`Alt+Q`（其它平台 `Alt+Up`） |
 | 中止当前任务 | `Esc` |
 
-实际生效的键以 `/hotkeys` 为准。
+实际生效的键以 `/hotkeys` 为准。WSL 里跑为什么也会用这套替代键，见 [`../windows.md`](../windows.md) 第 5 节。
 
 ### 3.3 斜杠命令
 
@@ -184,7 +178,7 @@ pi update                                 # 升级 Pi 和模型目录
 
 2. **复杂需求先让它只读调研**
 
-   ```powershell
+   ```bash
    pi --tools read,grep,find,ls "读一下 order 模块，告诉我如果要加「超时未支付自动取消」该改哪些地方"
    ```
 
@@ -204,7 +198,7 @@ pi update                                 # 升级 Pi 和模型目录
    !printf '%s/%s\n' "$PI_PROVIDER" "$PI_MODEL"
    ```
 
-   （这些变量只注入模型调用的 `bash` / `powershell` 工具，你自己敲的 `!` 命令拿不到。）
+   （这些变量只注入模型调用的 `bash` 工具，你自己敲的 `!` 命令拿不到。）
 
 8. **一次性的小问题加 `--no-session`**，别把会话目录堆满。
 
@@ -214,8 +208,8 @@ pi update                                 # 升级 Pi 和模型目录
 
 配置类问题（网关、窗口、权限、环境）在各自的配置文档里有专门一节，这里只放使用层面的。
 
-**Q：`pi` 命令找不到**
-关掉终端重开刷新 PATH。还不行检查 `npm config get prefix` 对应的目录在不在 PATH 里。
+**Q：`pi: command not found`**
+重开终端刷新 `PATH`。还不行检查 `npm config get prefix` 对应的目录在不在 `PATH` 里。
 
 **Q：安装/启动报 Node 版本错误**
 Pi 要求 Node.js 22.19+，`node --version` 确认，升级后重开终端。
@@ -232,8 +226,8 @@ Pi 要求 Node.js 22.19+，`node --version` 确认，升级后重开终端。
 **Q：聊久了开始忘事 / 没聊几句就压缩**
 先看 `/session` 的上下文用量；窗口明显偏小就检查 `models.json` 里的 `contextWindow`，见 [`配置-模型接入.md`](./配置-模型接入.md) 第 5 节。
 
-**Q：Windows 上 `Alt+Enter` 没反应 / 图片粘不上**
-Windows Terminal 占用了部分 `Alt` 组合，Pi 换成了 `Ctrl+Q` / `Alt+Q` / `Alt+P`，图片粘贴是 `Alt+V`。详见 [`配置-运行环境.md`](./配置-运行环境.md) 第 2.5 节。
+**Q：WSL 里 `Ctrl+Q` / `Alt+Q` 按了没反应**
+WSL 下 Pi 和 Windows 用同一套替代键，终端占用了部分 `Alt` 组合。用 `/hotkeys` 看当前实际生效的键，见 [`../windows.md`](../windows.md) 第 5 节。
 
 **Q：会话文件在哪**
 `~/.pi/agent/sessions/`。`/session` 会打印当前会话的完整路径；`--session-dir` 或 `PI_CODING_AGENT_SESSION_DIR` 可以改位置。
@@ -269,7 +263,7 @@ Pi 的扩展顺序是官方明确建议的 —— **从最轻的机制开始**�
 - **自定义按键**：`~/.pi/agent/keybindings.json`，按官方 Keybindings 文档里的 action id 覆盖，改完 `/reload`。
 - **本地模型**：llama.cpp router（`/llama` 管理）；Ollama / LM Studio / vLLM / SGLang 走 `models.json` 兼容端点，见 [`配置-模型接入.md`](./配置-模型接入.md) 第 7 节。
 - **非交互与自动化**：`pi -p`、`--mode json`（JSONL 事件）、`--mode rpc`（双向）、TypeScript SDK。
-- **隔离运行**：容器化运行 Pi（官方有专门的容器化文档），这是唯一的强边界。
+- **隔离运行**：容器化运行 Pi（官方有专门的容器化文档），这是唯一的强边界。WSL 里跑只是换了环境，**不是沙箱**。
 
 ---
 
@@ -277,7 +271,7 @@ Pi 的扩展顺序是官方明确建议的 —— **从最轻的机制开始**�
 
 ```text
 安装        npm install -g --ignore-scripts @earendil-works/pi-coding-agent   (Node >= 22.19)
-启动        cd 项目目录; pi
+启动        cd 项目目录 && pi
 继续上次    pi -c
 选会话      pi -r                       |  pi --session <id>   |  pi --fork <id>
 一行问答    pi -p "问题"                |  pi -p --mode json "问题" > out.jsonl
@@ -289,15 +283,15 @@ Pi 的扩展顺序是官方明确建议的 —— **从最轻的机制开始**�
 
 界面        Enter                 提交
             Shift+Enter / Ctrl+J  换行
-            Ctrl+G                外部编辑器写长提示词
+            Ctrl+G                $EDITOR 写长提示词
             @文件 / Tab           引用文件、补全路径
-            Alt+V                 粘贴图片（Windows / WSL）
+            Alt+V                 粘贴图片
             !命令 / !!命令        执行命令，输出进 / 不进上下文
             Esc                   打断
             Ctrl+O / Ctrl+T       展开工具输出 / 显示 thinking
             Ctrl+L / Ctrl+P       选模型 / 循环切模型（反向 Alt+P）
             Shift+Tab             切思考等级（不是权限模式！）
-            Ctrl+Q / Alt+Q        追加任务 / 收回排队消息（Windows / WSL）
+            Ctrl+Q / Alt+Q        追加任务 / 收回排队消息
             Ctrl+X                复制最后一条回复
             Ctrl+C 两次           退出
 

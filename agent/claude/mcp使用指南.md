@@ -1,6 +1,6 @@
 # Claude Code MCP 使用指南
 
-本文面向本仓库团队成员，说明如何在 Claude Code 里接入、使用和排查 MCP Server。文中命令和默认值基于 Claude Code 2.1.x（Windows + PowerShell 环境），跟随版本变化，遇到不一致先跑 `claude mcp --help` 和 `/mcp`。
+本文面向本仓库团队成员，说明如何在 Claude Code 里接入、使用和排查 MCP Server。文中命令和默认值基于 Claude Code 2.1.x（Linux / WSL 环境），跟随版本变化。Windows 原生环境的差异见 [`../windows.md`](../windows.md)，遇到不一致先跑 `claude mcp --help` 和 `/mcp`。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式）；Skill 与 MCP 的分工见 [`skill使用指南.md`](./skill使用指南.md) 第 2 节，需要独立上下文或并行时见 [`subagent使用指南.md`](./subagent使用指南.md)。Codex / Pi 的对应文档见 [`../codex/mcp使用指南.md`](../codex/mcp使用指南.md)。
 
@@ -59,19 +59,19 @@ MCP（Model Context Protocol）让 Claude Code 连接**外部工具和数据源*
 
 ### 3.1 stdio（本地进程，最常见）
 
-```powershell
+```bash
 claude mcp add context7 -- npx -y @upstash/context7-mcp
 ```
 
 带环境变量时用 `-e` / `--env`：
 
-```powershell
+```bash
 claude mcp add my-server -e API_KEY=xxx -- npx my-mcp-server
 ```
 
 装到指定作用域：
 
-```powershell
+```bash
 claude mcp add context7 -s user -- npx -y @upstash/context7-mcp
 ```
 
@@ -81,18 +81,18 @@ claude mcp add context7 -s user -- npx -y @upstash/context7-mcp
 - **`--` 后面才是启动 Server 的命令和参数**，`--` 的作用是让 Claude Code 停止解析自己的选项，把后面的 `--some-flag` 原样交给 Server；
 - `-e` 设的环境变量会注入 Server 进程，等于把密钥交给它，只给你信任的 Server。
 
-> ⚠️ **不要把 Token / API Key / 密码直接写进命令行**：会留在 shell 历史里。要么用 `-e` 从环境变量取（`-e API_KEY=$env:API_KEY`），要么走第 4 节的配置文件。
+> ⚠️ **不要把 Token / API Key / 密码直接写进命令行**：会留在 shell 历史里。要么用 `-e` 从环境变量取（`-e API_KEY=$API_KEY`），要么走第 4 节的配置文件。
 
 ### 3.2 HTTP / SSE（远程 Server）
 
-```powershell
+```bash
 claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
 ```
 
 需要固定请求头时用 `-H` / `--header`（可以给多个）：
 
-```powershell
-claude mcp add --transport http my-remote https://mcp.example.com/mcp `
+```bash
+claude mcp add --transport http my-remote https://mcp.example.com/mcp \
   -H "X-Api-Key: abc123" -H "X-Custom: value"
 ```
 
@@ -102,20 +102,20 @@ claude mcp add --transport http my-remote https://mcp.example.com/mcp `
 
 远程 Server 走 OAuth 时，配置完再登录一次：
 
-```powershell
+```bash
 claude mcp login my-remote
 ```
 
 SSH / 无头环境（打不开浏览器）加 `--no-browser`，它会打印授权 URL，让你把回调地址粘回来：
 
-```powershell
+```bash
 claude mcp login my-remote --no-browser
 ```
 
 服务商要求预注册 OAuth 客户端时，加 `--client-id`；需要固定回调端口（服务端登记了 redirect URI）时用 `--callback-port`：
 
-```powershell
-claude mcp add --transport http my-remote https://mcp.example.com/mcp `
+```bash
+claude mcp add --transport http my-remote https://mcp.example.com/mcp \
   --client-id your-client-id --callback-port 8080
 ```
 
@@ -125,7 +125,7 @@ claude mcp add --transport http my-remote https://mcp.example.com/mcp `
 
 需要一次配多个字段（或从别处抄来一段配置）时：
 
-```powershell
+```bash
 claude mcp add-json my-server '{"type":"http","url":"https://mcp.example.com/mcp","headers":{"Authorization":"Bearer xxx"}}'
 ```
 
@@ -133,7 +133,7 @@ claude mcp add-json my-server '{"type":"http","url":"https://mcp.example.com/mcp
 
 ### 3.5 查看、验证和删除
 
-```powershell
+```bash
 claude mcp list                  # 列出所有 Server，并做健康检查
 claude mcp get codegraph         # 看某个 Server 的作用域、状态、命令
 claude mcp remove codegraph      # 删除（自动从它所在的作用域删）
@@ -221,7 +221,7 @@ CLI 适合加单条，配置文件和团队协作、密钥外置打交道更多�
 
 **推荐用白名单而不是 `enableAllProjectMcpServers: true`** —— 后者等于对所有仓库开绿灯，克隆任何一个陌生项目都可能直接起一堆进程。误点了拒绝想反悔，用：
 
-```powershell
+```bash
 claude mcp reset-project-choices
 ```
 
@@ -290,12 +290,12 @@ MCP 工具在模型眼里是 `mcp__<server>__<tool>`，比如 Server 名叫 `con
 
 | Server | 用途 | 装法 | 适合谁 |
 |---|---|---|---|
-| codegraph | 把代码库预建成知识图谱，一次调用拿到相关代码 | `claude mcp add codegraph -- codegraph serve --mcp` | 大仓库里 agent 靠 grep 找代码的场景，详见 [`../README.md#codegraph`](../README.md#codegraph) |
+| codegraph | 把代码库预建成知识图谱，一次调用拿到相关代码 | `claude mcp add codegraph -- codegraph serve --mcp` | 大仓库里 agent 靠 grep 找代码的场景，详见 [`../tool/codegraph.md`](../tool/codegraph.md) |
 | context7 | 查第三方库 / 框架的最新文档 | `claude mcp add context7 -- npx -y @upstash/context7-mcp` | 经常被版本差异坑到，讨厌模型凭记忆答 API |
 | filesystem | 受控地读写指定目录 | `claude mcp add fs -- npx -y @modelcontextprotocol/server-filesystem <路径>` | 需要让它访问项目外的固定目录 |
 | playwright | 驱动浏览器：打开页面、点击、截图 | `claude mcp add playwright -- npx -y @playwright/mcp@latest` | 调前端、复现 UI bug、写端到端测试 |
 | sentry | 查线上错误和堆栈 | `claude mcp add --transport http sentry https://mcp.sentry.dev/mcp` | 排查线上报错（需 OAuth 登录） |
-| dbx | 通过你已配置好的连接直接查库 | `claude mcp add dbx -- npx @dbx-app/mcp-server` | 常和数据库打交道，详见 [`../README.md#dbx`](../README.md#dbx) |
+| dbx | 通过你已配置好的连接直接查库 | `claude mcp add dbx -- npx @dbx-app/mcp-server` | 常和数据库打交道，详见 [`../tool/dbx.md`](../tool/dbx.md) |
 
 几条选型经验：
 

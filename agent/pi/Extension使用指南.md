@@ -1,6 +1,6 @@
 # Pi Extension 使用指南
 
-本文基于 Pi 0.87.x（Windows + PowerShell 环境实测）。API 签名逐个取自安装包内的 `dist/core/extensions/types.d.ts`，命令和默认值随版本变化，遇到不一致先执行 `pi --help`。
+本文基于 Pi 1.3.x（Linux / WSL 环境）。API 签名逐个取自安装包内的 `dist/core/extensions/types.d.ts`，命令和默认值随版本变化，遇到不一致先执行 `pi --help`。
 
 > ⚠️ 先说最要紧的一条：**扩展在 Pi 进程内执行，操作系统权限和 Pi 完全一样** —— 能读工作目录、能跑命令、能看会话历史和凭据。只加载你信得过的来源，详见第 9 节。
 
@@ -48,7 +48,7 @@ Pi 用 jiti 加载，**本地 TypeScript 扩展不需要编译**，改完 `/relo
 
 ### 2.2 临时加载和临时关掉
 
-```powershell
+```bash
 pi -e ./hello.ts             # 加载一个文件或目录，可重复
 pi -e npm:@example/pi-tools  # 临时试一个包，不写进 settings
 pi -ne                       # 关掉自动发现和配置里的扩展（显式 -e 的仍然加载）
@@ -415,7 +415,7 @@ Pi 有四种模式，**扩展在全部四种里都会加载**：
 
 ### 10.1 安装与管理
 
-```powershell
+```bash
 pi install npm:@example/pi-tools@1.0.0
 pi install git:github.com/example/pi-tools@v1
 pi install ./local-package          # 本地路径，按解析后的绝对路径加载
@@ -468,8 +468,8 @@ my-pi-package/
 
 **官方示例**（装完就在本地，按用途索引见该目录的 `README.md`）
 
-```powershell
-npm root -g     # 全局目录，示例在 <全局目录>\@earendil-works\pi-coding-agent\examples\extensions\
+```bash
+npm root -g     # 全局目录，示例在 <全局目录>/@earendil-works/pi-coding-agent/examples/extensions/
 ```
 
 - 起步：`hello.ts`、`tools.ts`（交互式开关工具的 `/tools` 命令）

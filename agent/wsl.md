@@ -163,6 +163,7 @@ appendWindowsPath = false
 - 所有 `.exe` 调用失效：`explorer.exe .`、`code .`、从 Linux 启动 Windows GUI 程序、Docker Desktop 集成。
 - VS Code Remote-WSL **不受影响**（Windows 侧 `wsl.exe` 拉起远程连接，不走 interop）。
 - 想用 `code .` 或 Docker Desktop 集成，就把这两行删掉。
+- enabled = false 有个缺点：会导致wsl中的claude启动很慢（6s), rg 无效
 
 ### 3.4 验证
 

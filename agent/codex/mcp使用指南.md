@@ -1,6 +1,6 @@
 # Codex MCP 使用指南
 
-本文面向使用 Codex CLI 的团队成员，默认环境为 Windows + PowerShell。命令和配置会随版本更新，遇到不一致时先执行 `codex mcp --help`。
+本文面向使用 Codex CLI 的团队成员，环境为 **Linux / WSL**（Windows 原生环境的差异见 [`../windows.md`](../windows.md)）。命令和配置会随版本更新，遇到不一致时先执行 `codex mcp --help`。
 
 Claude Code 的对应文档见 [`../claude/mcp使用指南.md`](../claude/mcp使用指南.md)。
 
@@ -21,37 +21,37 @@ MCP（Model Context Protocol）可以让 Codex 连接外部工具和数据源，
 
 ### 2.1 添加本地 STDIO Server
 
-```powershell
+```bash
 codex mcp add context7 -- npx -y @upstash/context7-mcp
 ```
 
 带环境变量时，在命令前加 `--env`：
 
-```powershell
-codex mcp add my-server --env API_KEY=$env:API_KEY -- python .\mcp_server.py
+```bash
+codex mcp add my-server --env API_KEY=$API_KEY -- python ./mcp_server.py
 ```
 
 说明：
 
 - `my-server` 是 Codex 中显示的名称；
 - `--` 后面是启动 MCP Server 的命令及参数；
-- 不要把 Token、API Key 或密码直接写进命令并提交到历史记录。
+- 不要把 Token、API Key 或密码直接写进命令并提交到历史记录。`$API_KEY` 这种从环境取值，变量名会留在历史里、值不会。
 
 ### 2.2 添加远程 HTTP Server
 
-```powershell
+```bash
 codex mcp add my-remote --url https://mcp.example.com/mcp
 ```
 
 如果 Server 使用 OAuth，配置后执行：
 
-```powershell
+```bash
 codex mcp login my-remote
 ```
 
 ### 2.3 查看和删除
 
-```powershell
+```bash
 codex mcp list
 codex mcp get my-server
 codex mcp remove my-server
@@ -59,7 +59,7 @@ codex mcp remove my-server
 
 查看全部子命令和参数：
 
-```powershell
+```bash
 codex mcp --help
 ```
 
@@ -84,13 +84,13 @@ codex mcp --help
 MCP 配置默认位于：
 
 ```text
-C:\Users\你的名字\.codex\config.toml
+~/.codex/config.toml
 ```
 
 也可以放在受信任项目的：
 
 ```text
-.codex\config.toml
+.codex/config.toml
 ```
 
 项目级配置只应放在可信仓库中，因为它会影响 Codex 启动外部工具的行为。
@@ -111,7 +111,7 @@ tool_timeout_sec = 60
 ```toml
 [mcp_servers.my_server]
 command = "python"
-args = [".\\mcp_server.py"]
+args = ["./mcp_server.py"]
 
 [mcp_servers.my_server.env]
 LOG_LEVEL = "info"
@@ -139,7 +139,7 @@ env_http_headers = { "X-Workspace" = "MCP_WORKSPACE" }
 
 OAuth Server 不需要把 Token 写入配置，执行以下命令完成登录即可：
 
-```powershell
+```bash
 codex mcp login my_remote
 ```
 
@@ -204,13 +204,13 @@ MCP 不会绕过 Codex 当前的沙箱和审批策略；外部服务本身的账
 
 确认远程 Server 支持 MCP OAuth，并重新执行：
 
-```powershell
+```bash
 codex mcp login <server-name>
 ```
 
 如果服务商要求预注册 OAuth 客户端，添加 Server 时提供客户端 ID：
 
-```powershell
+```bash
 codex mcp add my-remote --url https://mcp.example.com/mcp --oauth-client-id your-client-id
 ```
 
@@ -231,7 +231,7 @@ codex mcp add my-remote --url https://mcp.example.com/mcp --oauth-client-id your
 ```toml
 [mcp_servers.slow_server]
 command = "python"
-args = [".\\mcp_server.py"]
+args = ["./mcp_server.py"]
 startup_timeout_sec = 30
 tool_timeout_sec = 120
 ```

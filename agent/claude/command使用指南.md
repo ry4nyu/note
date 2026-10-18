@@ -1,6 +1,6 @@
 # Claude Code Command 使用指南
 
-本文面向本仓库团队成员，说明如何在 Claude Code 里写、用、排查**自定义斜杠命令**（`.claude/commands/*.md`）。文中机制基于 Claude Code 2.1.x（Windows + PowerShell 环境），命令和默认行为随版本变化，遇到不一致先敲 `/` 看菜单里到底列出了什么。
+本文面向本仓库团队成员，说明如何在 Claude Code 里写、用、排查**自定义斜杠命令**（`.claude/commands/*.md`）。文中机制基于 Claude Code 2.1.x（Linux / WSL 环境），命令和默认行为随版本变化，遇到不一致先敲 `/` 看菜单里到底列出了什么。
 
 前置阅读：[`README.md`](./README.md)（安装、配置、权限模式）；Command 与 Skill 的关系、以及「什么时候该用哪个」见 [`skill使用指南.md`](./skill使用指南.md) 第 2 节。Codex 目前没有对应篇目；Pi 的「提示词模板（`prompts/`）」是同类机制，见 [`../pi/Extension使用指南.md`](../pi/Extension使用指南.md)。
 
@@ -163,8 +163,6 @@ allowed-tools: Read, Edit, Bash(gh issue view:*), Bash(gh issue comment:*), Bash
 
 它的定义原文是 "Pick up skills added or changed on disk during this session"（二进制核对）—— 因为命令和 Skill 共用加载器，用它来拾取命令改动是合理推断，但**这条我没做端到端复现**（非交互模式没法在一个会话里改文件再看效果）。**不确定就重启会话，一定生效。**
 
-> **Windows 上的一个坑（本地实测）**：在 **Git Bash** 里用 `claude -p "/fix-issue 1234"`，`/fix-issue` 会被 MSYS 的路径转换当成 Unix 路径吃掉，命令根本不触发。加 `MSYS_NO_PATHCONV=1` 前缀即可。PowerShell 里没有这个问题。
-
 ---
 
 ## 4. frontmatter 字段
@@ -179,7 +177,7 @@ allowed-tools: Read, Edit, Bash(gh issue view:*), Bash(gh issue comment:*), Bash
 | `model` | 用哪个模型跑这条命令 | Skill 篇 |
 | `disable-model-invocation` | 设 `true`：**模型不能自己调**，只有你能敲 `/名字` | 二进制核对 |
 | `user-invocable` | 设 `false`：**对你隐藏 `/命令`**，只有模型能调 | 二进制核对 |
-| `shell` | 正文里 `!` 命令块用哪个 shell：`bash` / `powershell`，**默认 bash 且与平台无关** | 二进制核对 |
+| `shell` | 正文里 `!` 命令块用哪个 shell：`bash` / `powershell`，**默认 bash 且与平台无关**（Linux 下不用管这个字段） | 二进制核对 |
 | `context` / `agent` | 让命令在独立子 agent 里跑（`context: fork`），见第 7 节 | Skill 篇 |
 | `hooks` | 本命令生效期间注册 hook | Skill 篇 |
 
@@ -273,7 +271,7 @@ ARGUMENTS: <你输入的原文>
 
 几条要注意的：
 
-- **默认走 bash（Windows 上是 Git Bash），且不随平台变**。二进制里 `shell` 字段的描述原文是 "Shell for `!`-command blocks: `bash` or `powershell`. Defaults to bash regardless of platform"。要在里面写 PowerShell，得显式加 `shell: powershell`，否则你会看到两种语法打架。
+- **默认走 bash，且不随平台变**。二进制里 `shell` 字段的描述原文是 "Shell for `!`-command blocks: `bash` or `powershell`. Defaults to bash regardless of platform"。Linux / WSL 下正常写 bash 就行；只有在 Windows 上想用它跑 PowerShell 时才需要显式加 `shell: powershell`（见 [`../windows.md`](../windows.md)）。
 - **这一步不受 Claude Code 权限审批管辖**：它是命令展开的一部分，不是一次工具调用。所以**别在命令正文里塞会改状态、会联网、会碰密钥的命令** —— 这条命令一旦被调用，它就会跑，没有任何二次确认。
 - **企业策略可以关掉它**：二进制里有 `disableSkillShellExecution` 策略开关，被关掉时替换成的原文是 `[shell command execution disabled by policy]`。如果你的命令里 `!` 那块变成了这句话，就是被策略拦了，不是命令写错了。
 - 本地实测踩到过：模型看到内联的 shell 命令时，**可能把它当成"试图注入指令的文本"而拒绝执行**并跟你解释一遍。这是它在防注入，属正常表现。真需要让它跑，把 `!` 注入的结果用在它必须依赖的地方（而不是让它"照抄一行"）会更自然。
@@ -374,9 +372,7 @@ agent: Explore
 | 参数没传进去 | 占位符是不是写成了 `$1` 却只传了一个参数（`$1` 是**第二个**，第一个是 `$0`）；或者压根没写占位符（那样只会在末尾追加 `ARGUMENTS: ...`，5.4 节） |
 | 钱数 / shell 变量被吃掉 | 字面 `$` 要写 `\$`（5.5 节） |
 | `!` 那块没执行 | 正文里是不是写成了 `[shell command execution disabled by policy]` —— 那是被策略开关关了（6.1 节），不是命令写错 |
-| `!` 里的 PowerShell 语法报错 | `shell` 字段默认是 `bash`，要用 PowerShell 得显式写 `shell: powershell`（6.1 节） |
 | 模型拒绝执行命令里的 `!` 那行 | 它在防注入，属正常；把注入结果用在它真正需要的地方，别让它"照抄一行"（6.1 节） |
-| 在 Git Bash 里 `claude -p "/命令 参数"` 没反应 | MSYS 把 `/命令` 当路径转了，加 `MSYS_NO_PATHCONV=1`（3.3 节） |
 
 ---
 
@@ -405,7 +401,6 @@ agent: Explore
 
 动态内容    !`命令`           内联执行，输出先替换再给模型（默认 bash，与平台无关）
             ```! 围栏块       同上的块形式
-            shell: powershell  要让 ! 走 PowerShell 必须显式写
             ! 不受审批管辖     命令被调就会跑，别放改状态/碰密钥的命令
             @路径             引入文件内容
             策略关了会变成 [shell command execution disabled by policy]
