@@ -22,7 +22,7 @@ MCP（Model Context Protocol）可以让 Codex 连接外部工具和数据源，
 ### 2.1 添加本地 STDIO Server
 
 ```bash
-codex mcp add context7 -- npx -y @upstash/context7-mcp
+codex mcp add codegraph -- codegraph serve --mcp
 ```
 
 带环境变量时，在命令前加 `--env`：
@@ -98,10 +98,9 @@ MCP 配置默认位于：
 ### 4.1 STDIO 示例
 
 ```toml
-[mcp_servers.context7]
-command = "npx"
-args = ["-y", "@upstash/context7-mcp"]
-env_vars = ["CONTEXT7_API_KEY"]
+[mcp_servers.codegraph]
+command = "codegraph"
+args = ["serve", "--mcp"]
 startup_timeout_sec = 10
 tool_timeout_sec = 60
 ```

@@ -41,7 +41,7 @@ MCP 是给模型**加工具**，不是教模型怎么干活。常见的连接方
 ### 3.1 stdio（本地进程，最常见）
 
 ```bash
-claude mcp add context7 -- npx -y @upstash/context7-mcp
+claude mcp add codegraph -- codegraph serve --mcp
 ```
 
 带环境变量时用 `-e` / `--env`：
@@ -53,12 +53,12 @@ claude mcp add my-server -e API_KEY=xxx -- npx my-mcp-server
 装到指定作用域：
 
 ```bash
-claude mcp add context7 -s user -- npx -y @upstash/context7-mcp
+claude mcp add codegraph -s user -- codegraph serve --mcp
 ```
 
 说明：
 
-- `context7` 是你在 Claude Code 里看到的名字，之后 `remove` / `login` 都用它；
+- `codegraph` 是你在 Claude Code 里看到的名字，之后 `remove` / `login` 都用它；
 - **`--` 后面才是启动 Server 的命令和参数**，`--` 让 Claude Code 停止解析自己的选项，把后面的 `--some-flag` 原样交给 Server；
 - `-e` 设的环境变量会注入 Server 进程，等于把密钥交给它，只给你信任的 Server。
 
@@ -138,10 +138,10 @@ CLI 适合加单条；配置文件更适合团队协作和密钥外置。
 ```json
 {
   "mcpServers": {
-    "context7": {
+    "codegraph": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
     },
     "internal-api": {
       "type": "http",
@@ -190,7 +190,7 @@ CLI 适合加单条；配置文件更适合团队协作和密钥外置。
 
 ```json
 {
-  "enabledMcpjsonServers": ["context7"]
+  "enabledMcpjsonServers": ["codegraph"]
 }
 ```
 
@@ -228,7 +228,7 @@ claude mcp reset-project-choices
 
 ### 5.2 工具长什么样
 
-MCP 工具在模型眼里是 `mcp__<server>__<tool>`。Server 叫 `context7`、工具叫 `resolve-library-id`，就是 `mcp__context7__resolve-library-id`。claude.ai connector 接进来的是 `mcp__<connector>__<toolName>`。
+MCP 工具在模型眼里是 `mcp__<server>__<tool>`。Server 叫 `codegraph`、工具叫 `codegraph_explore`，就是 `mcp__codegraph__codegraph_explore`。claude.ai connector 接进来的是 `mcp__<connector>__<toolName>`。
 
 想让它列出工具、又不想触发写操作：
 
@@ -251,12 +251,11 @@ MCP 工具在模型眼里是 `mcp__<server>__<tool>`。Server 叫 `context7`、�
 
 ## 6. 常用 Server 推荐
 
-包名都已确认存在（`npm view` 实测）。**装之前先用 `-s local` 试，确认有用了再考虑提到 `user` 或写进 `.mcp.json`。**
+表里的包名和命令都已确认可用（`npm view` 与本机实测）。**装之前先用 `-s local` 试，确认有用了再考虑提到 `user` 或写进 `.mcp.json`。**
 
 | Server | 用途 | 装法 | 适合谁 |
 |---|---|---|---|
 | codegraph | 把代码库预建成知识图谱，一次调用拿到相关代码 | `claude mcp add codegraph -- codegraph serve --mcp` | 大仓库里靠 grep 找代码，详见 [`../tool/codegraph.md`](../tool/codegraph.md) |
-| context7 | 查第三方库 / 框架的最新文档 | `claude mcp add context7 -- npx -y @upstash/context7-mcp` | 经常被版本差异坑到 |
 | filesystem | 受控地读写指定目录 | `claude mcp add fs -- npx -y @modelcontextprotocol/server-filesystem <路径>` | 需要访问项目外的固定目录 |
 | playwright | 驱动浏览器：打开页面、点击、截图 | `claude mcp add playwright -- npx -y @playwright/mcp@latest` | 调前端、复现 UI bug、写端到端测试 |
 | sentry | 查线上错误和堆栈 | `claude mcp add --transport http sentry https://mcp.sentry.dev/mcp` | 排查线上报错（需 OAuth 登录） |
@@ -266,7 +265,7 @@ MCP 工具在模型眼里是 `mcp__<server>__<tool>`。Server 叫 `context7`、�
 
 - **本地 / 自建项目优先 `-s local`**，先在当前项目验证，别一上来装成 `user` 污染所有项目。
 - **只读工具先跑**，确认返回质量再放开写操作。
-- **`npx -y` 的包尽量锁版本**：不锁意味着每次启动都拉最新，某个未来版本被投毒就会直接在你机器上跑起来（如 `@upstash/context7-mcp@4.1.1`）。
+- **`npx -y` 的包尽量锁版本**：不锁意味着每次启动都拉最新，某个未来版本被投毒或引入破坏性变更就会直接落在你机器上，写成 `@scope/pkg@1.2.3` 而不是 `@latest`。
 - 团队共用的才写进 `.mcp.json`；个人口味留在 `local` / `user`。
 
 ## 7. 安全注意事项
