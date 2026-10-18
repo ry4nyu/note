@@ -12,6 +12,7 @@ agent/
 ├─ tool/              外部工具文档：每个工具一篇
 │   ├─ caveman.md           省 token：让 agent 少说废话（Skill）
 │   ├─ ponytail.md          省 token：让 agent 别过度设计（Skill）
+│   ├─ mattpocock-skills.md 工程流程：追问需求 / 拆票 / TDD / 评审（Skill 合集）
 │   ├─ codegraph.md         代码图谱（MCP）
 │   ├─ open-code-review.md  AI 代码评审（CLI + 插件）
 │   ├─ officecli.md         Word / Excel / PPT 生成（CLI + Skill）
@@ -42,6 +43,7 @@ agent/
 |---|---|---|---|
 | [caveman](./tool/caveman.md) | Agent 说话太啰嗦，废话烧 token | Skill | <https://github.com/JuliusBrussee/caveman> |
 | [ponytail](./tool/ponytail.md) | Agent 过度设计，写一堆没用的代码 | Skill | <https://github.com/DietrichGebert/ponytail> |
+| [mattpocock-skills](./tool/mattpocock-skills.md) | 想动手前先问清楚，拆票 / TDD / 评审都有规矩 | Skill 合集 | <https://github.com/mattpocock/skills> |
 | [codegraph](./tool/codegraph.md) | 大仓库里 agent 找代码靠瞎 grep | MCP | <https://github.com/colbymchenry/codegraph> |
 | [open-code-review](./tool/open-code-review.md) | 代码评审靠人肉，想加一层 AI 兜底 | CLI + 插件 | <https://github.com/alibaba/open-code-review> |
 | [officecli](./tool/officecli.md) | 让 agent 帮你写 Word / Excel / PPT | CLI + Skill | <https://github.com/iOfficeAI/OfficeCLI> |
@@ -59,6 +61,7 @@ agent/
 | 工具 | 形态 | Pi | Claude Code | Codex |
 |---|---|---|---|---|
 | caveman、ponytail、archify | Skill | `~/.pi/agent/skills/<名>/`，`/skill:<名>` | `~/.claude/skills/<名>/`，`/<名>` | `~/.codex/skills/<名>/` 或项目 `.agents/skills/`，`$<名>` |
+| mattpocock-skills（27 个） | Skill 合集 | `npx skills add mattpocock/skills -a pi`，或 `pi install git:github.com/mattpocock/skills` | `claude plugin install mattpocock-skills@claude-plugins-official` | `codex plugin marketplace add mattpocock/skills` → `codex plugin add mattpocock-skills@mattpocock` |
 | diagram-design | Skill + 命令 | `pi install https://github.com/cathrynlavery/diagram-design` | `/plugin marketplace add …` | `codex plugin marketplace add …` |
 | codegraph | MCP（stdio） | `pi mcp add codegraph -- codegraph serve --mcp` | `claude mcp add --scope user codegraph -- codegraph serve --mcp` | `codex mcp add codegraph -- codegraph serve --mcp` |
 | dbx | MCP（HTTP） | `pi mcp add dbx --url http://localhost:5225/mcp --bearer-token-env-var DBX_MCP_TOKEN` | 项目 `.mcp.json`（`type: http` + headers） | `codex mcp add dbx --url ...` + `bearer_token_env_var` |
@@ -80,6 +83,7 @@ agent/
 1. **第一周**：装一个输出类 skill，[caveman](./tool/caveman.md) 或 [ponytail](./tool/ponytail.md)。零风险，立刻能感受到区别。
 2. **大仓库**：接 [codegraph](./tool/codegraph.md)，感受"一次调用拿到代码"和"grep 八轮"的差别。
 3. **按需**：团队有评审流程 → [open-code-review](./tool/open-code-review.md)；天天写文档表格 → [officecli](./tool/officecli.md)；要和数据库打交道 → [dbx](./tool/dbx.md)。
+4. **流程类**：[mattpocock-skills](./tool/mattpocock-skills.md) 别一次全装，先只留 `grill-me` / `diagnosing-bugs` 两个，用顺了再加。
 
 **推荐验证方式**：装前后各找同一个真实任务跑一遍，对比一下 token 消耗和你的体感。README 上的数字是别人的机器、别人的仓库，你的场景未必一样。
 
