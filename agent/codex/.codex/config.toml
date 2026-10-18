@@ -1,0 +1,6 @@
+# Project-scoped Codex settings.
+# Durable repository behavior belongs in AGENTS.md files. Migrated reference material is under .codex/reference/.
+
+approval_policy = "on-request"
+#sandbox_mode = "workspace-write"
+sandbox_mode = "danger-full-access"
