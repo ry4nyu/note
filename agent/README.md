@@ -17,6 +17,7 @@ agent/
 │   ├─ officecli.md         Word / Excel / PPT 生成（CLI + Skill）
 │   ├─ dbx.md               数据库客户端 + MCP
 │   ├─ archify.md           可交互架构图（Skill）
+│   ├─ diagram-design.md    有设计感的架构图 / 流程图（Skill）
 │   └─ herdr.md             多 agent 终端运行时
 ├─ claude/            Claude Code 文档：README.md（上手指南）、rule / skill / mcp / hook / command / subagent 使用指南.md
 ├─ codex/             Codex CLI 文档：README.md 及 hook / mcp / plugin / skill / subagent 五篇
@@ -46,6 +47,7 @@ agent/
 | [officecli](./tool/officecli.md) | 让 agent 帮你写 Word / Excel / PPT | CLI + Skill | <https://github.com/iOfficeAI/OfficeCLI> |
 | [dbx](./tool/dbx.md) | 轻量数据库客户端 + 让 agent 直连查库 | 桌面 + MCP | <https://github.com/t8y2/dbx> |
 | [archify](./tool/archify.md) | 把方案 / 架构图讲清楚给同事看 | Skill | <https://github.com/tt-a1i/archify> |
+| [diagram-design](./tool/diagram-design.md) | 图一画就是 AI 味，进不了文档和 PPT | Skill + 命令 | <https://github.com/cathrynlavery/diagram-design> |
 | [herdr](./tool/herdr.md) | 开一堆 agent 跑长任务，窗口管不过来 | 终端运行时 | <https://github.com/herdrdev/herdr> |
 
 ---
@@ -57,6 +59,7 @@ agent/
 | 工具 | 形态 | Pi | Claude Code | Codex |
 |---|---|---|---|---|
 | caveman、ponytail、archify | Skill | `~/.pi/agent/skills/<名>/`，`/skill:<名>` | `~/.claude/skills/<名>/`，`/<名>` | `~/.codex/skills/<名>/` 或项目 `.agents/skills/`，`$<名>` |
+| diagram-design | Skill + 命令 | `pi install https://github.com/cathrynlavery/diagram-design` | `/plugin marketplace add …` | `codex plugin marketplace add …` |
 | codegraph | MCP（stdio） | `pi mcp add codegraph -- codegraph serve --mcp` | `claude mcp add --scope user codegraph -- codegraph serve --mcp` | `codex mcp add codegraph -- codegraph serve --mcp` |
 | dbx | MCP（HTTP） | `pi mcp add dbx --url http://localhost:5225/mcp --bearer-token-env-var DBX_MCP_TOKEN` | 项目 `.mcp.json`（`type: http` + headers） | `codex mcp add dbx --url ...` + `bearer_token_env_var` |
 | open-code-review、officecli | CLI（+ 可选 Skill） | 让 agent 自己跑 CLI，`AGENTS.md` 里写一句 | 同上；有官方插件 | 同上；有官方 skill |
