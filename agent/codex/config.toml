@@ -1,0 +1,8 @@
+model = "gpt-5"                         # 必须匹配 LiteLLM 的 model_name
+model_provider = "litellm"
+
+[model_providers.litellm]
+name = "LiteLLM"
+base_url = "http://localhost:4000/v1"
+env_key = "LITELLM_API_KEY"             # 只写环境变量名，不要写密钥
+wire_api = "responses"
