@@ -18,6 +18,7 @@ Pi 是 Earendil Works 做的终端编程 Agent。和 Claude Code、Codex 相比�
 | WSL 本体怎么装（镜像网络、代理、interop、排错） | [`../wsl.md`](../wsl.md) |
 | Windows 原生环境（PowerShell 工具、Git Bash、快捷键差异） | [`../windows.md`](../windows.md) |
 | 想写扩展 | [`Extension使用指南.md`](./Extension使用指南.md) |
+| 懒得自己写，找现成好用的扩展 | [`推荐的extension.md`](./推荐的extension.md) |
 | 想用/写 Skill | [`skill使用指导.md`](./skill使用指导.md) |
 
 ---
@@ -258,7 +259,7 @@ Pi 的扩展顺序是官方明确建议的 —— **从最轻的机制开始**�
 
 其它值得知道的：
 
-- **Pi 包管理**：`pi install <source>` / `pi list` / `pi config`（TUI 里逐个开关资源）。本机已经装了一个包：`git:github.com/DietrichGebert/ponytail`（见 [`../README.md`](../README.md) 里的 ponytail 一节）。
+- **Pi 包管理**：`pi install <source>` / `pi list` / `pi config`（TUI 里逐个开关资源）。推荐清单见 [`推荐的extension.md`](./推荐的extension.md)。
 - **Skill 加载位置**：`~/.pi/agent/skills/`、项目 `.pi/skills/`、以及项目或祖先目录的 `.agents/skills/`（后者受项目信任保护）。启用后可用 `/skill:name` 调用。
 - **自定义按键**：`~/.pi/agent/keybindings.json`，按官方 Keybindings 文档里的 action id 覆盖，改完 `/reload`。
 - **本地模型**：llama.cpp router（`/llama` 管理）；Ollama / LM Studio / vLLM / SGLang 走 `models.json` 兼容端点，见 [`配置-模型接入.md`](./配置-模型接入.md) 第 7 节。

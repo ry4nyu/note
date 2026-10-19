@@ -23,7 +23,7 @@ agent/
 ├─ claude/            Claude Code 文档：README.md（索引）、安装与配置、日常使用、规则与记忆、Skill 与命令、MCP、Hook、Subagent
 ├─ codex/             Codex CLI 文档：README.md 及 hook / mcp / plugin / skill / subagent 五篇
 └─ pi/                Pi 文档：README.md、配置-运行环境.md、配置-模型接入.md、
-                      配置-权限与规则.md、Extension使用指南.md、skill使用指导.md
+                      配置-权限与规则.md、Extension使用指南.md、推荐的extension.md、skill使用指导.md
 ```
 
 **阅读前提**：三份文档都按 **Linux / WSL** 写，命令是 bash、路径是 `~`。还没装 WSL 先看 [`wsl.md`](./wsl.md)；必须在 Windows 原生环境跑的情况（.NET / MSBuild / COM / Windows 服务）看 [`windows.md`](./windows.md)。
